@@ -8,8 +8,8 @@ import {
 } from "recharts";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/org";
-import { TrendingUp, TrendingDown, DollarSign, Target, Download, Loader2, BarChart3 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { TrendingUp, TrendingDown, DollarSign, Target, Download, Loader2, BarChart3, Plus, X } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 
 type KPIs = {
   mrr: { value: number; change: number; trend: string };
@@ -46,13 +46,22 @@ const CustomTooltip = ({ active, payload, label }: {
   return null;
 };
 
+const today = new Date();
+const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+
 export default function RevenueAnalyticsPage() {
   const [period, setPeriod] = useState("12m");
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [revenueData, setRevenueData] = useState<RevenueRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    month: defaultMonth, mrr: "", newRevenue: "", churnedRevenue: "",
+    newCustomers: "", churnedCustomers: "", activeCustomers: "",
+  });
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch(apiUrl("/api/analytics", { type: "overview" }))
       .then(r => r.json())
       .then(j => {
@@ -62,6 +71,31 @@ export default function RevenueAnalyticsPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.mrr) return;
+    setSaving(true);
+    await fetch(apiUrl("/api/revenue-metrics"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: `${form.month}-01`,
+        mrr: form.mrr,
+        newRevenue: form.newRevenue || "0",
+        churnedRevenue: form.churnedRevenue || "0",
+        newCustomers: form.newCustomers || "0",
+        churnedCustomers: form.churnedCustomers || "0",
+        activeCustomers: form.activeCustomers || "0",
+      }),
+    });
+    setSaving(false);
+    setShowModal(false);
+    setForm({ month: defaultMonth, mrr: "", newRevenue: "", churnedRevenue: "", newCustomers: "", churnedCustomers: "", activeCustomers: "" });
+    load();
+  };
 
   const mrrGrowthData = revenueData.map((d, i) => ({
     ...d,
@@ -103,6 +137,7 @@ export default function RevenueAnalyticsPage() {
               ))}
             </div>
             <Button variant="outline" size="sm" icon={Download}>Export</Button>
+            <Button variant="gradient" size="sm" icon={Plus} onClick={() => setShowModal(true)}>Log Month</Button>
           </div>
         </div>
 
@@ -138,7 +173,8 @@ export default function RevenueAnalyticsPage() {
           <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-12 flex flex-col items-center justify-center gap-3 text-center">
             <BarChart3 size={32} className="text-surface-600" />
             <p className="text-sm font-semibold text-surface-300">No revenue data yet</p>
-            <p className="text-xs text-surface-500">Close your first deal to see revenue charts</p>
+            <p className="text-xs text-surface-500">Log your first month of MRR to populate the charts</p>
+            <Button variant="outline" size="sm" icon={Plus} onClick={() => setShowModal(true)}>Log Month</Button>
           </div>
         ) : (
           <>
@@ -230,6 +266,75 @@ export default function RevenueAnalyticsPage() {
           </div>
         </div>
       </div>
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
+              <h2 className="text-sm font-bold text-surface-100">Log Monthly Revenue</h2>
+              <button onClick={() => setShowModal(false)} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
+            </div>
+            <form onSubmit={handleLog} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-surface-400 mb-1.5">Month *</label>
+                <input type="month" required value={form.month} onChange={e => setForm(p => ({ ...p, month: e.target.value }))}
+                  className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 focus:outline-none focus:border-brand-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-surface-400 mb-1.5">MRR ($) *</label>
+                  <input type="number" min="0" step="0.01" required value={form.mrr} onChange={e => setForm(p => ({ ...p, mrr: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-surface-400 mb-1.5">New Revenue ($)</label>
+                  <input type="number" min="0" step="0.01" value={form.newRevenue} onChange={e => setForm(p => ({ ...p, newRevenue: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-surface-400 mb-1.5">Churned Revenue ($)</label>
+                  <input type="number" min="0" step="0.01" value={form.churnedRevenue} onChange={e => setForm(p => ({ ...p, churnedRevenue: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-surface-400 mb-1.5">Active Customers</label>
+                  <input type="number" min="0" value={form.activeCustomers} onChange={e => setForm(p => ({ ...p, activeCustomers: e.target.value }))}
+                    placeholder="0"
+                    className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-surface-400 mb-1.5">New Customers</label>
+                  <input type="number" min="0" value={form.newCustomers} onChange={e => setForm(p => ({ ...p, newCustomers: e.target.value }))}
+                    placeholder="0"
+                    className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-surface-400 mb-1.5">Churned Customers</label>
+                  <input type="number" min="0" value={form.churnedCustomers} onChange={e => setForm(p => ({ ...p, churnedCustomers: e.target.value }))}
+                    placeholder="0"
+                    className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                </div>
+              </div>
+              <p className="text-[11px] text-surface-600">ARR is auto-calculated as MRR × 12. Net revenue = New − Churned.</p>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowModal(false)}
+                  className="h-9 px-4 rounded-lg border border-surface-700 text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="h-9 px-4 rounded-lg bg-gradient-to-r from-brand-500 to-blue-500 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+                  {saving && <Loader2 size={13} className="animate-spin" />}
+                  {saving ? "Saving…" : "Log Month"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

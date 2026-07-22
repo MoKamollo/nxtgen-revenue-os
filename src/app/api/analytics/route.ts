@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       winRate:         { value: winRate,                     change: 0,                          trend: "up" },
       churnRate:       { value: churnRate,                   change: 0,                          trend: "down" },
       cac:             { value: 0,                           change: 0,                          trend: "up" },
-      ltv:             { value: 0,                           change: 0,                          trend: "up" },
+      ltv:             { value: mrr > 0 && churnRate > 0 ? Math.round(mrr / (churnRate / 100)) : avgDealSize > 0 ? Math.round(avgDealSize * 3) : 0, change: 0, trend: "up" },
       nps:             { value: 0,                           change: 0,                          trend: "up" },
       openTickets:     { value: openTickets,                 change: 0,                          trend: "up" },
       activeWorkflows: { value: activeWorkflowRows.length,   enrolled: enrolledCount },

@@ -7,6 +7,7 @@ import { triggerAutomation } from "@/lib/automation";
 export async function GET(request: NextRequest) {
   try {
     const orgId = request.headers.get("x-tenant-id");
+    if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
     const query = db
       .select({
@@ -29,9 +30,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(companies, eq(contacts.companyId, companies.id))
       .leftJoin(users, eq(contacts.ownerId, users.id));
 
-    const results = orgId
-      ? await query.where(eq(contacts.organizationId, orgId)).limit(200)
-      : await query.limit(200);
+    const results = await query.where(eq(contacts.organizationId, orgId)).limit(200);
 
     const shaped = results.map((r) => ({
       id: r.id,

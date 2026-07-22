@@ -89,9 +89,9 @@ export default function DashboardPage() {
               <Ticket size={14} className="text-red-400" />
             </div>
             <p className="text-xl font-bold text-surface-50">{kpis.openTickets.value}</p>
-            <p className="text-xs text-emerald-400 mt-1">↓ {Math.abs(kpis.openTickets.change)}% vs last week</p>
+            <p className="text-xs text-emerald-400 mt-1">{kpis.openTickets.change !== 0 ? `${kpis.openTickets.change > 0 ? "↑" : "↓"} ${Math.abs(kpis.openTickets.change)}% vs last week` : "No change data yet"}</p>
             <div className="mt-2 h-1 rounded-full bg-surface-800">
-              <div className="h-full w-3/4 rounded-full bg-red-500/60" />
+              <div className="h-full rounded-full bg-red-500/60" style={{ width: `${Math.min((kpis.openTickets.value / 50) * 100, 100)}%` }} />
             </div>
           </div>
           <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-4">
@@ -100,9 +100,9 @@ export default function DashboardPage() {
               <Percent size={14} className="text-amber-400" />
             </div>
             <p className="text-xl font-bold text-surface-50">{formatPercent(kpis.churnRate.value)}</p>
-            <p className="text-xs text-emerald-400 mt-1">↓ 0.4% from last month</p>
+            <p className="text-xs text-emerald-400 mt-1">{kpis.churnRate.change !== 0 ? `${kpis.churnRate.change > 0 ? "↑" : "↓"} ${Math.abs(kpis.churnRate.change)}% from last month` : "Tracking monthly"}</p>
             <div className="mt-2 h-1 rounded-full bg-surface-800">
-              <div className="h-full w-1/12 rounded-full bg-amber-500/80" />
+              <div className="h-full rounded-full bg-amber-500/80" style={{ width: `${Math.min(kpis.churnRate.value * 5, 100)}%` }} />
             </div>
           </div>
           <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-4">

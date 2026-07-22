@@ -1,109 +1,162 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { contacts, deals, revenueMetrics, campaigns, workflows, tickets } from "@/db/schema";
-import { eq, count, sum, desc } from "drizzle-orm";
+import { contacts, deals, revenueMetrics, workflows, tickets } from "@/db/schema";
+import { eq, desc, sql } from "drizzle-orm";
+
+const STAGE_COLORS: Record<string, string> = {
+  prospecting:   "#94a3b8",
+  qualification: "#60a5fa",
+  proposal:      "#818cf8",
+  negotiation:   "#fb923c",
+  closed_won:    "#34d399",
+  closed_lost:   "#f87171",
+};
+
+const SOURCE_COLORS = ["#6366f1","#8b5cf6","#06b6d4","#10b981","#f59e0b","#ef4444","#94a3b8"];
 
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const orgId = request.headers.get("x-tenant-id");
-    const type = searchParams.get("type") || "overview";
+  const orgId = request.headers.get("x-tenant-id");
+  if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-    if (!orgId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  try {
+    const [contactRows, dealRows, metrics, workflowRows, ticketRows] = await Promise.all([
+      db.select().from(contacts).where(eq(contacts.organizationId, orgId)),
+      db.select().from(deals).where(eq(deals.organizationId, orgId)),
+      db.select().from(revenueMetrics).where(eq(revenueMetrics.organizationId, orgId)).orderBy(desc(revenueMetrics.date)).limit(13),
+      db.select().from(workflows).where(eq(workflows.organizationId, orgId)),
+      db.select().from(tickets).where(eq(tickets.organizationId, orgId)),
+    ]);
+
+    // ── KPI derivations ────────────────────────────────────────────────────────
+
+    const activeDeals = dealRows.filter(d => !["closed_won","closed_lost"].includes(d.stage ?? ""));
+    const pipelineValue = activeDeals.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
+    const wonDeals = dealRows.filter(d => d.stage === "closed_won");
+    const lostDeals = dealRows.filter(d => d.stage === "closed_lost");
+    const closedDeals = wonDeals.length + lostDeals.length;
+    const winRate = closedDeals > 0 ? Math.round((wonDeals.length / closedDeals) * 1000) / 10 : 0;
+    const avgDealSize = wonDeals.length > 0 ? wonDeals.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0) / wonDeals.length : 0;
+    const openTickets = ticketRows.filter(t => !["resolved","closed"].includes(t.status ?? "")).length;
+    const activeWorkflowRows = workflowRows.filter(w => w.status === "active");
+    const enrolledCount = activeWorkflowRows.reduce((s, w) => s + (w.enrolledCount ?? 0), 0);
+
+    const churnedContacts = contactRows.filter(c => c.status === "churned").length;
+    const churnRate = contactRows.length > 0 ? Math.round((churnedContacts / contactRows.length) * 1000) / 10 : 0;
+
+    // MRR/ARR: from revenueMetrics if available, otherwise sum from deals closed this month
+    const latestMetric = metrics[0];
+    const prevMetric   = metrics[1];
+    let mrr = parseFloat(latestMetric?.mrr ?? "0");
+    let arr = parseFloat(latestMetric?.arr ?? "0");
+
+    if (mrr === 0 && wonDeals.length > 0) {
+      const now = new Date();
+      const thisMonthWon = wonDeals.filter(d => {
+        const wonAt = d.wonAt ?? d.updatedAt;
+        return wonAt && new Date(wonAt).getMonth() === now.getMonth() && new Date(wonAt).getFullYear() === now.getFullYear();
+      });
+      mrr = thisMonthWon.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
+      arr = mrr * 12;
     }
 
-    if (type === "overview") {
-      const [
-        contactRows,
-        dealRows,
-        metrics,
-        campaignRows,
-        workflowRows,
-        ticketRows,
-      ] = await Promise.all([
-        db.select().from(contacts).where(eq(contacts.organizationId, orgId)),
-        db.select().from(deals).where(eq(deals.organizationId, orgId)),
-        db.select().from(revenueMetrics).where(eq(revenueMetrics.organizationId, orgId)).orderBy(desc(revenueMetrics.date)).limit(12),
-        db.select().from(campaigns).where(eq(campaigns.organizationId, orgId)),
-        db.select().from(workflows).where(eq(workflows.organizationId, orgId)),
-        db.select().from(tickets).where(eq(tickets.organizationId, orgId)),
-      ]);
+    const prevMrr = parseFloat(prevMetric?.mrr ?? "0");
+    const pct = (curr: number, prev: number) =>
+      prev > 0 ? Math.round(((curr - prev) / prev) * 100 * 10) / 10 : 0;
 
-      const latestMetric = metrics[0];
-      const prevMetric = metrics[1];
+    const kpis = {
+      mrr:             { value: mrr,                         change: pct(mrr, prevMrr),         trend: mrr >= prevMrr ? "up" : "down" },
+      arr:             { value: arr,                         change: 0,                          trend: "up" },
+      totalContacts:   { value: contactRows.length,          change: 0,                          trend: "up" },
+      activeDeals:     { value: activeDeals.length,          change: 0,                          trend: "up" },
+      pipelineValue:   { value: pipelineValue,               change: 0,                          trend: "up" },
+      avgDealSize:     { value: Math.round(avgDealSize),     change: 0,                          trend: "up" },
+      winRate:         { value: winRate,                     change: 0,                          trend: "up" },
+      churnRate:       { value: churnRate,                   change: 0,                          trend: "down" },
+      cac:             { value: 0,                           change: 0,                          trend: "up" },
+      ltv:             { value: 0,                           change: 0,                          trend: "up" },
+      nps:             { value: 0,                           change: 0,                          trend: "up" },
+      openTickets:     { value: openTickets,                 change: 0,                          trend: "up" },
+      activeWorkflows: { value: activeWorkflowRows.length,   enrolled: enrolledCount },
+    };
 
-      const pct = (curr: string | null, prev: string | null) => {
-        const c = parseFloat(curr ?? "0");
-        const p = parseFloat(prev ?? "0");
-        return p > 0 ? Math.round(((c - p) / p) * 100 * 10) / 10 : 0;
-      };
+    // ── Revenue chart ──────────────────────────────────────────────────────────
 
-      const activeDeals = dealRows.filter(d => !["closed_won", "closed_lost"].includes(d.stage ?? ""));
-      const pipelineValue = activeDeals.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
-      const wonDeals = dealRows.filter(d => d.stage === "closed_won");
-      const winRate = dealRows.length > 0 ? Math.round((wonDeals.length / dealRows.length) * 1000) / 10 : 0;
-      const avgDealSize = wonDeals.length > 0 ? wonDeals.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0) / wonDeals.length : 0;
-      const openTickets = ticketRows.filter(t => !["resolved", "closed"].includes(t.status ?? "")).length;
-      const activeWorkflows = workflowRows.filter(w => w.status === "active");
-      const enrolledCount = activeWorkflows.reduce((s, w) => s + (w.enrolledCount ?? 0), 0);
+    let revenueChart: { month: string; mrr: number; arr: number; new: number; churned: number; net: number }[] = [];
 
-      const mrr = parseFloat(latestMetric?.mrr ?? "0");
-      const arr = parseFloat(latestMetric?.arr ?? "0");
-      const prevMrr = parseFloat(prevMetric?.mrr ?? "0");
-      const prevArr = parseFloat(prevMetric?.arr ?? "0");
-
-      const kpis = {
-        mrr: { value: mrr, change: pct(latestMetric?.mrr, prevMetric?.mrr), trend: mrr >= prevMrr ? "up" : "down" },
-        arr: { value: arr, change: pct(latestMetric?.arr, prevMetric?.arr), trend: arr >= prevArr ? "up" : "down" },
-        totalContacts: { value: contactRows.length, change: 12.4, trend: "up" },
-        activeDeals: { value: activeDeals.length, change: -3.2, trend: "down" },
-        pipelineValue: { value: pipelineValue, change: 18.7, trend: "up" },
-        avgDealSize: { value: Math.round(avgDealSize), change: 22.9, trend: "up" },
-        winRate: { value: winRate, change: 4.2, trend: "up" },
-        churnRate: { value: 2.1, change: -0.4, trend: "up" },
-        cac: { value: 1840, change: -8.3, trend: "up" },
-        ltv: { value: 28400, change: 14.2, trend: "up" },
-        nps: { value: 67, change: 5, trend: "up" },
-        openTickets: { value: openTickets, change: -12.1, trend: "up" },
-        activeWorkflows: { value: activeWorkflows.length, enrolled: enrolledCount },
-      };
-
-      const revenueData = [...metrics].reverse().map((m) => {
+    if (metrics.length > 0) {
+      revenueChart = [...metrics].reverse().map(m => {
         const d = new Date(m.date);
         return {
           month: d.toLocaleString("en-US", { month: "short" }),
-          mrr: parseFloat(m.mrr ?? "0"),
-          arr: parseFloat(m.arr ?? "0"),
-          new: parseFloat(m.newRevenue ?? "0"),
+          mrr:     parseFloat(m.mrr ?? "0"),
+          arr:     parseFloat(m.arr ?? "0"),
+          new:     parseFloat(m.newRevenue ?? "0"),
           churned: parseFloat(m.churnedRevenue ?? "0"),
-          net: parseFloat(m.netRevenue ?? "0"),
+          net:     parseFloat(m.netRevenue ?? "0"),
         };
       });
-
-      const stageCounts: Record<string, { count: number; value: number }> = {};
-      const stageColors: Record<string, string> = {
-        prospecting: "#6366f1", qualification: "#8b5cf6",
-        proposal: "#06b6d4", negotiation: "#10b981", closed_won: "#f59e0b",
-      };
-      for (const d of dealRows) {
-        const s = d.stage ?? "prospecting";
-        if (!stageCounts[s]) stageCounts[s] = { count: 0, value: 0 };
-        stageCounts[s].count++;
-        stageCounts[s].value += parseFloat(d.value ?? "0");
+    } else if (wonDeals.length > 0) {
+      // Derive from deals: group closed_won by month
+      const byMonth: Record<string, number> = {};
+      for (const d of wonDeals) {
+        const wonAt = d.wonAt ?? d.updatedAt;
+        if (!wonAt) continue;
+        const key = new Date(wonAt).toLocaleString("en-US", { month: "short", year: "2-digit" });
+        byMonth[key] = (byMonth[key] ?? 0) + parseFloat(d.value ?? "0");
       }
-      const pipelineData = Object.entries(stageCounts).map(([stage, { count, value }]) => ({
-        stage: stage.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()),
-        count, value, color: stageColors[stage] ?? "#6366f1",
-      }));
-
-      return NextResponse.json({
-        data: { kpis, revenue: revenueData, pipeline: pipelineData },
-        generatedAt: new Date().toISOString(),
+      const sorted = Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b));
+      let running = 0;
+      revenueChart = sorted.map(([month, val]) => {
+        running += val;
+        return { month: month.split(" ")[0], mrr: running, arr: running * 12, new: val, churned: 0, net: val };
       });
     }
 
-    return NextResponse.json({ data: {}, generatedAt: new Date().toISOString() });
+    // ── Pipeline chart ─────────────────────────────────────────────────────────
+
+    const stageCounts: Record<string, { count: number; value: number }> = {};
+    for (const d of dealRows) {
+      const s = d.stage ?? "prospecting";
+      if (!stageCounts[s]) stageCounts[s] = { count: 0, value: 0 };
+      stageCounts[s].count++;
+      stageCounts[s].value += parseFloat(d.value ?? "0");
+    }
+    const pipelineChart = Object.entries(stageCounts).map(([stage, { count, value }]) => ({
+      stage: stage.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()),
+      count, value, color: STAGE_COLORS[stage] ?? "#6366f1",
+    }));
+
+    // ── Contact sources (for traffic sources chart) ────────────────────────────
+
+    const sourceCounts: Record<string, number> = {};
+    for (const c of contactRows) {
+      const src = c.source ?? "Unknown";
+      sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
+    }
+    const total = contactRows.length || 1;
+    const contactSources = Object.entries(sourceCounts)
+      .sort(([,a],[,b]) => b - a)
+      .map(([name, count], i) => ({
+        name: name.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()),
+        value: Math.round((count / total) * 100),
+        count,
+        color: SOURCE_COLORS[i % SOURCE_COLORS.length],
+      }));
+
+    // ── Conversion funnel (contact status pipeline) ────────────────────────────
+
+    const statusCount = (s: string) => contactRows.filter(c => c.status === s).length;
+    const conversionFunnel = [
+      { stage: "Total Contacts",  count: contactRows.length },
+      { stage: "Leads",           count: contactRows.filter(c => c.status === "lead").length },
+      { stage: "Prospects",       count: statusCount("prospect") },
+      { stage: "Customers",       count: statusCount("customer") + statusCount("vip") },
+    ];
+
+    return NextResponse.json({
+      data: { kpis, revenue: revenueChart, pipeline: pipelineChart, contactSources, conversionFunnel },
+      generatedAt: new Date().toISOString(),
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch analytics" }, { status: 500 });

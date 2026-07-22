@@ -1,18 +1,7 @@
 "use client";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-  FunnelChart,
-  Funnel,
-  LabelList,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell, PieChart, Pie,
 } from "recharts";
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/org";
@@ -118,44 +107,40 @@ const ChannelTooltip = ({ active, payload }: {
   return null;
 };
 
-const channelData = [
-  { name: "Organic Search", value: 34, color: "#6366f1" },
-  { name: "Paid Ads", value: 28, color: "#8b5cf6" },
-  { name: "Referral", value: 18, color: "#06b6d4" },
-  { name: "Social", value: 11, color: "#10b981" },
-  { name: "Email", value: 9, color: "#f59e0b" },
-];
-
-const conversionFunnel = [
-  { stage: "Visitors", count: 48420 },
-  { stage: "Leads", count: 9284 },
-  { stage: "MQLs", count: 3142 },
-  { stage: "SQLs", count: 892 },
-  { stage: "Opportunities", count: 346 },
-  { stage: "Customers", count: 124 },
-];
-
 export function TrafficSourcesChart() {
+  const [data, setData] = useState<{ name: string; value: number; color: string }[]>([]);
+
+  useEffect(() => {
+    fetch(apiUrl("/api/analytics", { type: "overview" }))
+      .then(r => r.json())
+      .then(j => setData(j.data?.contactSources ?? []));
+  }, []);
+
+  if (data.length === 0) {
+    return (
+      <Card>
+        <CardHeader><CardTitle>Lead Sources</CardTitle></CardHeader>
+        <div className="flex items-center justify-center py-12 text-xs text-surface-500">No contacts yet</div>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Lead Sources</CardTitle>
-      </CardHeader>
+      <CardHeader><CardTitle>Lead Sources</CardTitle></CardHeader>
       <div className="flex items-center gap-4">
         <div className="h-44 w-44 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={channelData} cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={3} dataKey="value">
-                {channelData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} strokeWidth={0} />
-                ))}
+              <Pie data={data} cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={3} dataKey="value">
+                {data.map((entry, i) => <Cell key={i} fill={entry.color} strokeWidth={0} />)}
               </Pie>
               <Tooltip content={<ChannelTooltip />} />
             </PieChart>
           </ResponsiveContainer>
         </div>
         <div className="flex-1 space-y-2">
-          {channelData.map((item) => (
+          {data.map(item => (
             <div key={item.name} className="flex items-center gap-2.5">
               <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
               <span className="flex-1 text-xs text-surface-400">{item.name}</span>
@@ -169,43 +154,46 @@ export function TrafficSourcesChart() {
 }
 
 export function ConversionFunnelChart() {
-  const total = conversionFunnel[0].count;
+  const [funnel, setFunnel] = useState<{ stage: string; count: number }[]>([]);
+
+  useEffect(() => {
+    fetch(apiUrl("/api/analytics", { type: "overview" }))
+      .then(r => r.json())
+      .then(j => setFunnel(j.data?.conversionFunnel ?? []));
+  }, []);
+
+  const total = funnel[0]?.count || 1;
+  const colors = ["bg-brand-500","bg-violet-500","bg-cyan-500","bg-emerald-500"];
+
+  if (funnel.length === 0 || total === 0) {
+    return (
+      <Card>
+        <CardHeader><CardTitle>Conversion Funnel</CardTitle></CardHeader>
+        <div className="flex items-center justify-center py-12 text-xs text-surface-500">No contact data yet</div>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Conversion Funnel</CardTitle>
-        <span className="text-xs text-surface-500">Last 30 days</span>
+        <span className="text-xs text-surface-500">Contact stages</span>
       </CardHeader>
       <div className="space-y-2">
-        {conversionFunnel.map((stage, i) => {
+        {funnel.map((stage, i) => {
           const pct = Math.round((stage.count / total) * 100);
-          const colors = [
-            "bg-brand-500",
-            "bg-violet-500",
-            "bg-cyan-500",
-            "bg-emerald-500",
-            "bg-amber-500",
-            "bg-rose-500",
-          ];
           return (
-            <div key={stage.stage} className="group">
+            <div key={stage.stage}>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-surface-400">{stage.stage}</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-surface-200">
-                    {formatNumber(stage.count)}
-                  </span>
-                  <span className="text-[10px] text-surface-600">
-                    {pct}%
-                  </span>
+                  <span className="text-xs font-semibold text-surface-200">{formatNumber(stage.count)}</span>
+                  <span className="text-[10px] text-surface-600">{pct}%</span>
                 </div>
               </div>
               <div className="h-1.5 rounded-full bg-surface-800">
-                <div
-                  className={`h-full rounded-full transition-all ${colors[i]}`}
-                  style={{ width: `${pct}%`, opacity: 1 - i * 0.08 + 0.08 }}
-                />
+                <div className={`h-full rounded-full transition-all ${colors[i] ?? "bg-surface-500"}`} style={{ width: `${pct}%` }} />
               </div>
             </div>
           );

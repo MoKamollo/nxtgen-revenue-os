@@ -12,8 +12,6 @@ import {
   BarChart3,
   Send,
   Clock,
-  FileEdit,
-  MoreHorizontal,
   MousePointerClick,
   Eye,
   DollarSign,
@@ -25,8 +23,11 @@ import {
   Play,
   Pause,
   Trash2,
+  MoreHorizontal,
+  X,
+  Loader2,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 type Campaign = {
   id: string; name: string; type: string; status: string; subject: string | null;
@@ -45,12 +46,45 @@ export default function CampaignsPage() {
   const [search, setSearch] = useState("");
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", type: "email", subject: "", fromName: "", fromEmail: "" });
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch(apiUrl("/api/campaigns"))
       .then((r) => r.json())
       .then((j) => setAllCampaigns(j.data ?? []));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    await fetch(apiUrl("/api/campaigns"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: form.name,
+        type: form.type,
+        subject: form.subject || null,
+        fromName: form.fromName || null,
+        fromEmail: form.fromEmail || null,
+      }),
+    });
+    setSaving(false);
+    setShowModal(false);
+    setForm({ name: "", type: "email", subject: "", fromName: "", fromEmail: "" });
+    load();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this campaign?")) return;
+    await fetch(apiUrl(`/api/campaigns/${id}`), { method: "DELETE" });
+    setAllCampaigns(prev => prev.filter(c => c.id !== id));
+    setActiveMenu(null);
+  };
 
   const filtered = allCampaigns.filter((c) =>
     !search || c.name.toLowerCase().includes(search.toLowerCase())
@@ -84,7 +118,7 @@ export default function CampaignsPage() {
             <Button variant="outline" size="sm" icon={BarChart3}>
               Analytics
             </Button>
-            <Button variant="gradient" size="sm" icon={Plus}>
+            <Button variant="gradient" size="sm" icon={Plus} onClick={() => setShowModal(true)}>
               New Campaign
             </Button>
           </div>
@@ -149,6 +183,14 @@ export default function CampaignsPage() {
         </div>
 
         {/* Campaign List */}
+        {allCampaigns.length === 0 ? (
+          <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-12 flex flex-col items-center justify-center gap-3 text-center">
+            <Mail size={32} className="text-surface-600" />
+            <p className="text-sm font-semibold text-surface-300">No campaigns yet</p>
+            <p className="text-xs text-surface-500">Create your first email campaign to start reaching your audience</p>
+            <Button variant="outline" size="sm" icon={Plus} onClick={() => setShowModal(true)}>New Campaign</Button>
+          </div>
+        ) : (
         <div className="space-y-3">
           {filtered.map((campaign) => {
             const TypeIcon = campaignTypeIcons[campaign.type as keyof typeof campaignTypeIcons] || Mail;
@@ -233,7 +275,7 @@ export default function CampaignsPage() {
                   )}
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1.5 ml-2">
+                  <div className="flex items-center gap-1.5 ml-2 relative">
                     {campaign.status === "draft" && (
                       <Button variant="outline" size="sm" icon={Play}>
                         Launch
@@ -247,9 +289,19 @@ export default function CampaignsPage() {
                     <button className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all">
                       <Copy size={13} />
                     </button>
-                    <button className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === campaign.id ? null : campaign.id); }}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all">
                       <MoreHorizontal size={14} />
                     </button>
+                    {activeMenu === campaign.id && (
+                      <div className="absolute right-0 top-8 z-20 w-36 rounded-lg border border-surface-700 bg-surface-900 shadow-xl py-1">
+                        <button onClick={() => handleDelete(campaign.id)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-surface-800 transition-colors">
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      </div>
+                    )}
                     <ChevronRight size={14} className="text-surface-700 group-hover:text-surface-500 transition-colors ml-1" />
                   </div>
                 </div>
@@ -275,6 +327,8 @@ export default function CampaignsPage() {
             );
           })}
         </div>
+
+        )}
 
         {/* Templates Section */}
         <div>
@@ -310,6 +364,72 @@ export default function CampaignsPage() {
           </div>
         </div>
       </div>
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
+              <h2 className="text-sm font-bold text-surface-100">New Campaign</h2>
+              <button onClick={() => setShowModal(false)} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
+            </div>
+            <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-surface-400 mb-1.5">Campaign name *</label>
+                <input required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Summer Launch 2026"
+                  className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-surface-400 mb-1.5">Type</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: "email", label: "Email", icon: Mail },
+                    { value: "sms", label: "SMS", icon: MessageSquare },
+                    { value: "push", label: "Push", icon: Zap },
+                  ].map(({ value, label, icon: Icon }) => (
+                    <button key={value} type="button" onClick={() => setForm(p => ({ ...p, type: value }))}
+                      className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold border transition-all ${form.type === value ? "border-brand-500 bg-brand-500/20 text-brand-300" : "border-surface-700 text-surface-400 hover:border-surface-600"}`}>
+                      <Icon size={12} />{label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {form.type === "email" && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-surface-400 mb-1.5">Subject line</label>
+                    <input value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))}
+                      placeholder="e.g. Don't miss this offer 🎯"
+                      className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-surface-400 mb-1.5">From name</label>
+                      <input value={form.fromName} onChange={e => setForm(p => ({ ...p, fromName: e.target.value }))}
+                        placeholder="Your Name"
+                        className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-surface-400 mb-1.5">From email</label>
+                      <input type="email" value={form.fromEmail} onChange={e => setForm(p => ({ ...p, fromEmail: e.target.value }))}
+                        placeholder="you@company.com"
+                        className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+                    </div>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowModal(false)}
+                  className="h-9 px-4 rounded-lg border border-surface-700 text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="h-9 px-4 rounded-lg bg-gradient-to-r from-brand-500 to-blue-500 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+                  {saving && <Loader2 size={13} className="animate-spin" />}
+                  {saving ? "Creating…" : "Create Campaign"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

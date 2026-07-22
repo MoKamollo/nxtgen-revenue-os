@@ -30,6 +30,7 @@ import {
   Cpu,
   Share2,
   Hash,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
 import { useSession } from "@/hooks/useSession";
@@ -177,6 +178,13 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const userName  = session?.user?.name  ?? session?.org?.name ?? "…";
   const userTitle = session?.user?.jobTitle ?? session?.role ?? "";
 
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+
   const toggleExpanded = (href: string) => {
     setExpanded((prev) =>
       prev.includes(href) ? prev.filter((h) => h !== href) : [...prev, href]
@@ -224,22 +232,37 @@ export function Sidebar({ collapsed }: SidebarProps) {
       </nav>
 
       {/* User */}
-      <div className="shrink-0 border-t border-surface-800 p-3">
+      <div className="shrink-0 border-t border-surface-800 p-3 relative">
         {collapsed ? (
-          <div className="flex justify-center">
+          <button onClick={handleLogout} title="Sign out"
+            className="flex justify-center w-full rounded-lg p-1.5 hover:bg-surface-800/60 transition-colors">
             <Avatar name={userName} size="sm" status="online" />
-          </div>
+          </button>
         ) : (
-          <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-800/60 cursor-pointer transition-colors">
-            <Avatar name={userName} size="sm" status="online" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-surface-200 truncate">
-                {userName}
-              </p>
-              <p className="text-[10px] text-surface-500 truncate">{userTitle}</p>
-            </div>
-            <ChevronDown size={12} className="text-surface-500 shrink-0" />
-          </div>
+          <>
+            <button
+              onClick={() => setUserMenuOpen((v) => !v)}
+              className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-800/60 cursor-pointer transition-colors"
+            >
+              <Avatar name={userName} size="sm" status="online" />
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-xs font-semibold text-surface-200 truncate">{userName}</p>
+                <p className="text-[10px] text-surface-500 truncate">{userTitle}</p>
+              </div>
+              <ChevronDown size={12} className={cn("text-surface-500 shrink-0 transition-transform", userMenuOpen && "rotate-180")} />
+            </button>
+            {userMenuOpen && (
+              <div className="absolute bottom-full left-3 right-3 mb-1 rounded-lg border border-surface-700 bg-surface-900 shadow-xl overflow-hidden">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut size={13} />
+                  Sign out
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </aside>

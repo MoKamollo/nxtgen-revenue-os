@@ -1,36 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { workflows } from "@/db/schema";
+import { products } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   const orgId = request.headers.get("x-tenant-id");
   if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   try {
-    const results = await db.select().from(workflows).where(eq(workflows.organizationId, orgId));
+    const results = await db.select().from(products).where(eq(products.organizationId, orgId));
     return NextResponse.json({ data: results, total: results.length });
   } catch {
-    return NextResponse.json({ error: "Failed to fetch workflows" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch products" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   const orgId = request.headers.get("x-tenant-id");
-  const userId = request.headers.get("x-user-id");
   if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   try {
     const body = await request.json();
-    const [workflow] = await db.insert(workflows).values({
+    const [product] = await db.insert(products).values({
       organizationId: orgId,
       name: body.name,
       description: body.description,
-      status: "draft",
-      trigger: body.trigger || { event: "manual" },
-      steps: body.steps || [],
-      createdById: userId ?? undefined,
+      sku: body.sku,
+      type: body.type || "digital",
+      price: body.price,
+      currency: body.currency || "USD",
+      recurring: body.recurring ?? false,
+      interval: body.interval,
+      trialDays: body.trialDays,
+      unlimited: body.unlimited ?? true,
+      isActive: true,
     }).returning();
-    return NextResponse.json({ data: workflow }, { status: 201 });
+    return NextResponse.json({ data: product }, { status: 201 });
   } catch {
-    return NextResponse.json({ error: "Failed to create workflow" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create product" }, { status: 500 });
   }
 }

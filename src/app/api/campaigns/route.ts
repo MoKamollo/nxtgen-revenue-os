@@ -20,13 +20,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const orgId = request.headers.get("x-tenant-id");
+  if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   try {
     const body = await request.json();
 
     const [campaign] = await db
       .insert(campaigns)
       .values({
-        organizationId: body.organizationId,
+        organizationId: orgId,
         name: body.name,
         type: body.type || "email",
         status: "draft",

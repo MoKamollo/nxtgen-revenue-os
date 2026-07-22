@@ -1,128 +1,122 @@
 "use client";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { mockAIInsights, mockContacts, mockKPIs } from "@/lib/data";
-import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/org";
 import {
-  Bot,
-  Sparkles,
-  TrendingUp,
-  AlertTriangle,
-  ArrowUpRight,
-  Zap,
-  Brain,
-  Target,
-  Users,
-  DollarSign,
-  ChevronRight,
-  RefreshCcw,
-  Star,
-  BarChart3,
-  MessageSquare,
-  Play,
-  Settings,
+  Bot, Sparkles, TrendingUp, AlertTriangle, ArrowUpRight, Zap,
+  Brain, Target, Users, DollarSign, RefreshCcw, Star, BarChart3,
+  MessageSquare, Play, Settings, Loader2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  ResponsiveContainer,
-  ScatterChart,
-  Scatter,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ScatterChart, Scatter, Cell,
 } from "recharts";
 
-const radarData = [
-  { metric: "Engagement", value: 82 },
-  { metric: "Product Fit", value: 91 },
-  { metric: "Budget Align", value: 67 },
-  { metric: "Decision Power", value: 78 },
-  { metric: "Timeline", value: 85 },
-  { metric: "Churn Risk", value: 94 },
-];
+type Contact = {
+  id: string; firstName: string; lastName: string | null;
+  email: string | null; status: string; score: number;
+  jobTitle: string | null;
+};
 
-const scatterData = mockContacts.map((c) => ({
-  x: c.score,
-  y: c.revenue > 0 ? c.revenue / 1000 : Math.random() * 50,
-  name: `${c.firstName} ${c.lastName}`,
-  status: c.status,
-}));
+type Insight = {
+  id: string; type: "opportunity" | "churn" | "expansion" | "campaign";
+  title: string; body: string; priority: string;
+  contact?: string; impact?: string; action: string;
+};
 
-const AI_TASKS = [
-  {
-    id: "task1",
-    title: "Draft follow-up email for Sarah Johnson",
-    type: "email",
-    status: "ready",
-    confidence: 94,
-    impact: "High",
-    desc: "AI has drafted a personalized follow-up based on the enterprise proposal discussion",
-  },
-  {
-    id: "task2",
-    title: "Create churn prevention workflow for ScaleX AI",
-    type: "automation",
-    status: "ready",
-    confidence: 87,
-    impact: "Critical",
-    desc: "Launch 5-step intervention workflow targeting declining health scores",
-  },
-  {
-    id: "task3",
-    title: "Generate Q4 expansion proposal for BuildFast Co",
-    type: "proposal",
-    status: "ready",
-    confidence: 91,
-    impact: "Medium",
-    desc: "Professional upgrade proposal with ROI analysis and comparison",
-  },
-  {
-    id: "task4",
-    title: "Segment high-LTV prospects for personalized campaign",
-    type: "segment",
-    status: "processing",
-    confidence: 78,
-    impact: "Medium",
-    desc: "AI is analyzing behavioral patterns to create precision audience segment",
-  },
-];
+type Task = {
+  id: string; title: string; priority: string; status: string;
+  dueDate: string | null; description: string | null;
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  vip:      "#a78bfa",
+  customer: "#10b981",
+  prospect: "#60a5fa",
+  lead:     "#64748b",
+  churned:  "#f87171",
+};
+
+const TASK_ICONS: Record<string, typeof Zap> = {
+  urgent: Zap,
+  high:   AlertTriangle,
+  medium: MessageSquare,
+  low:    BarChart3,
+};
 
 export default function AIInsightsPage() {
-  const [selectedContact, setSelectedContact] = useState(mockContacts[0]);
+  const [contacts, setContacts]   = useState<Contact[]>([]);
+  const [insights, setInsights]   = useState<Insight[]>([]);
+  const [tasks, setTasks]         = useState<Task[]>([]);
+  const [loading, setLoading]     = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      fetch(apiUrl("/api/contacts")).then(r => r.json()),
+      fetch(apiUrl("/api/ai-insights")).then(r => r.json()),
+      fetch(apiUrl("/api/tasks")).then(r => r.json()),
+    ]).then(([contactsRes, insightsRes, tasksRes]) => {
+      const contactList: Contact[] = (contactsRes.data ?? []).map((c: Contact) => ({ ...c, score: c.score ?? 0 }));
+      setContacts(contactList);
+      setInsights(insightsRes.data ?? []);
+      const now = new Date();
+      const overdue = (tasksRes.data ?? []).filter((t: Task) => t.status !== "completed" && t.dueDate && new Date(t.dueDate) < now);
+      setTasks(overdue.slice(0, 4));
+      setSelectedContact(contactList.sort((a: Contact, b: Contact) => (b.score ?? 0) - (a.score ?? 0))[0] ?? null);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const triggerAnalysis = () => {
     setIsAnalyzing(true);
+    load();
     setTimeout(() => setIsAnalyzing(false), 2000);
   };
+
+  const topContacts   = [...contacts].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 4);
+  const churnInsights = insights.filter(i => i.type === "churn");
+  const expandInsights = insights.filter(i => i.type === "expansion");
+  const churnContacts = contacts.filter(c => c.status === "churned").slice(0, 3);
+  const vipNoDeals    = contacts.filter(c => c.status === "vip").slice(0, 3);
+
+  // Score distribution histogram
+  const scoreBuckets = [
+    { range: "0–20",  count: contacts.filter(c => c.score <= 20).length },
+    { range: "21–40", count: contacts.filter(c => c.score > 20 && c.score <= 40).length },
+    { range: "41–60", count: contacts.filter(c => c.score > 40 && c.score <= 60).length },
+    { range: "61–80", count: contacts.filter(c => c.score > 60 && c.score <= 80).length },
+    { range: "81–100",count: contacts.filter(c => c.score > 80).length },
+  ];
+
+  // Scatter: x=score, y=jitter derived from id length % 50 for visual spread
+  const scatterData = contacts.map(c => ({
+    x: c.score ?? 0,
+    y: (c.id.charCodeAt(0) + c.id.charCodeAt(1)) % 50,
+    name: `${c.firstName} ${c.lastName ?? ""}`.trim(),
+    status: c.status,
+  }));
 
   return (
     <AppLayout>
       <div className="p-6 space-y-6 animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-brand-500">
-                <Brain size={18} className="text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-surface-50 tracking-tight">
-                  AI Intelligence Center
-                </h1>
-                <p className="text-sm text-surface-500 mt-0.5">
-                  Autonomous insights powered by your revenue data
-                </p>
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-brand-500">
+              <Brain size={18} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-surface-50 tracking-tight">AI Intelligence Center</h1>
+              <p className="text-sm text-surface-500 mt-0.5">Autonomous insights powered by your revenue data</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -130,26 +124,20 @@ export default function AIInsightsPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs font-medium text-emerald-400">AI Engine Active</span>
             </div>
-            <Button
-              variant="gradient"
-              size="sm"
-              icon={RefreshCcw}
-              loading={isAnalyzing}
-              onClick={triggerAnalysis}
-            >
+            <Button variant="gradient" size="sm" icon={RefreshCcw} loading={isAnalyzing} onClick={triggerAnalysis}>
               Run Analysis
             </Button>
           </div>
         </div>
 
-        {/* AI Metrics */}
+        {/* AI Metrics — real counts, honest zeros */}
         <div className="grid grid-cols-4 gap-4">
           {[
-            { label: "Predictions Made", value: "2,847", sub: "Last 30 days", color: "text-brand-400", bg: "bg-brand-500/10", icon: Brain },
-            { label: "Accuracy Rate", value: "91.4%", sub: "Validated outcomes", color: "text-emerald-400", bg: "bg-emerald-500/10", icon: Target },
-            { label: "Revenue Protected", value: "$342K", sub: "Churn prevented", color: "text-amber-400", bg: "bg-amber-500/10", icon: DollarSign },
-            { label: "Opportunities Found", value: "47", sub: "This month", color: "text-violet-400", bg: "bg-violet-500/10", icon: Sparkles },
-          ].map((stat) => {
+            { label: "Total Contacts",       value: loading ? "—" : contacts.length.toLocaleString(),  sub: "In your CRM",           color: "text-brand-400",   bg: "bg-brand-500/10",   icon: Brain },
+            { label: "Active Insights",      value: loading ? "—" : insights.length,                   sub: "From your data",        color: "text-emerald-400", bg: "bg-emerald-500/10", icon: Target },
+            { label: "Churn Risk Contacts",  value: loading ? "—" : churnContacts.length,              sub: "Status: churned",       color: "text-amber-400",   bg: "bg-amber-500/10",   icon: DollarSign },
+            { label: "High Score Leads",     value: loading ? "—" : contacts.filter(c => c.score >= 70).length, sub: "Score ≥ 70", color: "text-violet-400",  bg: "bg-violet-500/10",  icon: Sparkles },
+          ].map(stat => {
             const Icon = stat.icon;
             return (
               <div key={stat.label} className={`rounded-xl border border-surface-800 ${stat.bg} p-4`}>
@@ -166,205 +154,195 @@ export default function AIInsightsPage() {
 
         {/* Main Grid */}
         <div className="grid grid-cols-3 gap-5">
-          {/* AI Action Queue */}
+          {/* AI Action Queue (overdue tasks) */}
           <div className="col-span-2 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-surface-200">
-                  AI Action Queue
-                </h2>
-                <Badge variant="purple" size="sm">
-                  {AI_TASKS.filter(t => t.status === "ready").length} ready
-                </Badge>
+                <h2 className="text-sm font-semibold text-surface-200">AI Action Queue</h2>
+                {!loading && tasks.length > 0 && (
+                  <Badge variant="purple" size="sm">{tasks.length} overdue</Badge>
+                )}
               </div>
-              <Button variant="ghost" size="sm">
-                View all
-              </Button>
+              <Button variant="ghost" size="sm">View all</Button>
             </div>
 
-            {AI_TASKS.map((task) => (
-              <div
-                key={task.id}
-                className="rounded-xl border border-surface-800 bg-surface-900/50 p-4 hover:border-surface-700 transition-all"
-              >
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                    task.status === "ready" ? "bg-brand-500/15" : "bg-amber-500/15"
-                  )}>
-                    {task.type === "email" && <MessageSquare size={15} className={task.status === "ready" ? "text-brand-400" : "text-amber-400"} />}
-                    {task.type === "automation" && <Zap size={15} className={task.status === "ready" ? "text-brand-400" : "text-amber-400"} />}
-                    {task.type === "proposal" && <BarChart3 size={15} className={task.status === "ready" ? "text-brand-400" : "text-amber-400"} />}
-                    {task.type === "segment" && <Users size={15} className={task.status === "ready" ? "text-brand-400" : "text-amber-400"} />}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-xs font-semibold text-surface-100">{task.title}</p>
-                      <Badge
-                        variant={task.impact === "Critical" ? "danger" : task.impact === "High" ? "warning" : "info"}
-                        size="sm"
-                      >
-                        {task.impact}
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-surface-500 leading-relaxed">{task.desc}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="flex items-center gap-1">
-                        <Star size={11} className="text-emerald-400" />
-                        <span className="text-[11px] text-emerald-400">{task.confidence}% confidence</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {task.status === "ready" ? (
-                      <Button variant="gradient" size="sm" icon={Play}>
-                        Execute
-                      </Button>
-                    ) : (
-                      <div className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-3 py-1.5">
-                        <RefreshCcw size={11} className="text-amber-400 animate-spin" />
-                        <span className="text-xs text-amber-400">Processing</span>
-                      </div>
-                    )}
-                    <button className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-600 hover:text-surface-300 hover:bg-surface-800 transition-all">
-                      <Settings size={13} />
-                    </button>
-                  </div>
-                </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin text-surface-500" /></div>
+            ) : tasks.length === 0 ? (
+              <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-8 flex flex-col items-center justify-center gap-2 text-center">
+                <Target size={24} className="text-surface-600" />
+                <p className="text-sm text-surface-400">No overdue tasks</p>
+                <p className="text-xs text-surface-600">All tasks are on track</p>
               </div>
-            ))}
+            ) : (
+              tasks.map(task => {
+                const Icon = TASK_ICONS[task.priority] ?? MessageSquare;
+                return (
+                  <div key={task.id} className="rounded-xl border border-surface-800 bg-surface-900/50 p-4 hover:border-surface-700 transition-all">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/15">
+                        <Icon size={15} className="text-brand-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-xs font-semibold text-surface-100">{task.title}</p>
+                          <Badge variant={task.priority === "urgent" ? "danger" : task.priority === "high" ? "warning" : "info"} size="sm">
+                            {task.priority}
+                          </Badge>
+                        </div>
+                        {task.description && <p className="text-[11px] text-surface-500 leading-relaxed">{task.description}</p>}
+                        {task.dueDate && (
+                          <div className="flex items-center gap-1 mt-2">
+                            <Star size={11} className="text-red-400" />
+                            <span className="text-[11px] text-red-400">Due: {new Date(task.dueDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button variant="gradient" size="sm" icon={Play}>Review</Button>
+                        <button className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-600 hover:text-surface-300 hover:bg-surface-800 transition-all">
+                          <Settings size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {/* AI insights (opportunity / campaign types) */}
+            {!loading && insights.filter(i => i.type === "opportunity" || i.type === "campaign").length > 0 && (
+              <div className="space-y-3 pt-1">
+                <h2 className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Recommended Actions</h2>
+                {insights.filter(i => i.type === "opportunity" || i.type === "campaign").map(insight => (
+                  <div key={insight.id} className="rounded-xl border border-brand-500/20 bg-brand-500/5 p-4 hover:border-brand-500/40 transition-all">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/15">
+                        {insight.type === "opportunity" ? <TrendingUp size={15} className="text-emerald-400" /> : <Zap size={15} className="text-amber-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-surface-100 mb-1">{insight.title}</p>
+                        <p className="text-[11px] text-surface-500 leading-relaxed">{insight.body}</p>
+                      </div>
+                      <Button variant="outline" size="sm">{insight.action}</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Lead Scoring Panel */}
           <div className="space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold text-surface-200 mb-3">
-                AI Lead Scoring
-              </h2>
-
-              {/* Select contact */}
-              <div className="space-y-2 mb-4">
-                {mockContacts.slice(0, 4).map((contact) => (
-                  <button
-                    key={contact.id}
-                    onClick={() => setSelectedContact(contact)}
-                    className={cn(
-                      "w-full flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all",
-                      selectedContact.id === contact.id
-                        ? "border-brand-500/40 bg-brand-500/8"
-                        : "border-surface-800 bg-surface-900/50 hover:border-surface-700"
-                    )}
-                  >
-                    <Avatar name={`${contact.firstName} ${contact.lastName}`} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-surface-100 truncate">
-                        {contact.firstName} {contact.lastName}
-                      </p>
-                      <p className="text-[10px] text-surface-500 truncate">{contact.company}</p>
-                    </div>
-                    <div className={cn(
-                      "flex h-7 w-8 items-center justify-center rounded-lg text-xs font-bold",
-                      contact.score >= 85 ? "bg-emerald-500/15 text-emerald-400" :
-                      contact.score >= 70 ? "bg-brand-500/15 text-brand-400" :
-                      "bg-amber-500/15 text-amber-400"
-                    )}>
-                      {contact.score}
-                    </div>
-                  </button>
-                ))}
+            <h2 className="text-sm font-semibold text-surface-200">AI Lead Scoring</h2>
+            {loading ? (
+              <div className="flex items-center justify-center py-8"><Loader2 size={16} className="animate-spin text-surface-500" /></div>
+            ) : topContacts.length === 0 ? (
+              <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-6 flex flex-col items-center justify-center gap-2 text-center">
+                <Users size={20} className="text-surface-600" />
+                <p className="text-xs text-surface-400">Add contacts to see lead scores</p>
               </div>
-
-              {/* Radar chart for selected contact */}
-              <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-4">
-                <p className="text-xs font-semibold text-surface-200 mb-1">
-                  {selectedContact.firstName} {selectedContact.lastName}
-                </p>
-                <p className="text-[10px] text-surface-500 mb-3">
-                  Lead quality breakdown
-                </p>
-                <div className="h-44">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={radarData}>
-                      <PolarGrid stroke="#1e293b" />
-                      <PolarAngleAxis
-                        dataKey="metric"
-                        tick={{ fill: "#64748b", fontSize: 9 }}
-                      />
-                      <Radar
-                        name="Score"
-                        dataKey="value"
-                        stroke="#6366f1"
-                        fill="#6366f1"
-                        fillOpacity={0.2}
-                        strokeWidth={1.5}
-                      />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {radarData.map((item) => (
-                    <div key={item.metric} className="flex items-center justify-between">
-                      <span className="text-[10px] text-surface-500">{item.metric}</span>
-                      <span className="text-[10px] font-semibold text-surface-300">{item.value}%</span>
-                    </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {topContacts.map(contact => (
+                    <button key={contact.id} onClick={() => setSelectedContact(contact)}
+                      className={cn("w-full flex items-center gap-2.5 rounded-xl border p-3 text-left transition-all",
+                        selectedContact?.id === contact.id ? "border-brand-500/40 bg-brand-500/8" : "border-surface-800 bg-surface-900/50 hover:border-surface-700")}>
+                      <Avatar name={`${contact.firstName} ${contact.lastName ?? ""}`} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-surface-100 truncate">{contact.firstName} {contact.lastName ?? ""}</p>
+                        <p className="text-[10px] text-surface-500 truncate">{contact.jobTitle ?? contact.status}</p>
+                      </div>
+                      <div className={cn("flex h-7 w-8 items-center justify-center rounded-lg text-xs font-bold",
+                        (contact.score ?? 0) >= 85 ? "bg-emerald-500/15 text-emerald-400" :
+                        (contact.score ?? 0) >= 70 ? "bg-brand-500/15 text-brand-400" : "bg-amber-500/15 text-amber-400")}>
+                        {contact.score ?? 0}
+                      </div>
+                    </button>
                   ))}
                 </div>
-              </div>
-            </div>
+
+                {selectedContact && (
+                  <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-4">
+                    <p className="text-xs font-semibold text-surface-200">{selectedContact.firstName} {selectedContact.lastName ?? ""}</p>
+                    <p className="text-[10px] text-surface-500 mb-3">{selectedContact.jobTitle ?? selectedContact.status}</p>
+                    <div className="space-y-2">
+                      {[
+                        { label: "AI Score",    value: `${selectedContact.score ?? 0}/100` },
+                        { label: "Status",      value: selectedContact.status },
+                        { label: "Email",       value: selectedContact.email ?? "—" },
+                      ].map(row => (
+                        <div key={row.label} className="flex items-center justify-between">
+                          <span className="text-[10px] text-surface-500">{row.label}</span>
+                          <span className="text-[10px] font-semibold text-surface-200 truncate max-w-28">{row.value}</span>
+                        </div>
+                      ))}
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between text-[10px] text-surface-500 mb-1">
+                          <span>Score</span>
+                          <span>{selectedContact.score ?? 0}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-surface-800">
+                          <div className={cn("h-full rounded-full", (selectedContact.score ?? 0) >= 80 ? "bg-emerald-500" : (selectedContact.score ?? 0) >= 60 ? "bg-brand-500" : "bg-amber-500")}
+                            style={{ width: `${selectedContact.score ?? 0}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
         {/* Predictive Insights */}
         <div className="grid grid-cols-2 gap-5">
-          {/* Churn Prediction */}
+          {/* Churn Predictions */}
           <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-semibold text-surface-200">Churn Predictions</h3>
-                <p className="text-xs text-surface-500 mt-0.5">Next 90 days</p>
+                <h3 className="text-sm font-semibold text-surface-200">Churn Risk</h3>
+                <p className="text-xs text-surface-500 mt-0.5">Contacts with churned status</p>
               </div>
-              <Badge variant="danger" size="sm">3 at risk</Badge>
+              {churnContacts.length > 0 && (
+                <Badge variant="danger" size="sm">{churnContacts.length} at risk</Badge>
+              )}
             </div>
-            <div className="space-y-2">
-              {[
-                { name: "Priya Sharma", company: "ScaleX AI", risk: 78, arr: 120000, score: 41 },
-                { name: "David Thompson", company: "NextStep Co", risk: 45, arr: 36000, score: 62 },
-                { name: "Elena Petrov", company: "Global Ops", risk: 32, arr: 48000, score: 71 },
-              ].map((item) => (
-                <div key={item.name} className="flex items-center gap-3 rounded-lg border border-surface-800 p-3">
-                  <Avatar name={item.name} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-surface-100">{item.name}</p>
-                    <p className="text-[10px] text-surface-500">{item.company} · {formatCurrency(item.arr)} ARR</p>
-                    <div className="mt-1.5 h-1 rounded-full bg-surface-800">
-                      <div
-                        className={cn(
-                          "h-full rounded-full",
-                          item.risk >= 70 ? "bg-red-500" :
-                          item.risk >= 40 ? "bg-amber-500" : "bg-emerald-500"
-                        )}
-                        style={{ width: `${item.risk}%` }}
-                      />
+            {loading ? (
+              <div className="flex items-center justify-center py-6"><Loader2 size={16} className="animate-spin text-surface-500" /></div>
+            ) : churnContacts.length === 0 && churnInsights.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
+                <AlertTriangle size={20} className="text-surface-600" />
+                <p className="text-xs text-surface-400">No churn risk detected</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {churnInsights.map(insight => (
+                  <div key={insight.id} className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                    <p className="text-xs font-semibold text-surface-100 mb-1">{insight.title}</p>
+                    <p className="text-[11px] text-surface-500 leading-relaxed">{insight.body}</p>
+                    <Button variant="danger" size="xs" className="mt-2">Intervene</Button>
+                  </div>
+                ))}
+                {churnContacts.map(c => (
+                  <div key={c.id} className="flex items-center gap-3 rounded-lg border border-surface-800 p-3">
+                    <Avatar name={`${c.firstName} ${c.lastName ?? ""}`} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-surface-100">{c.firstName} {c.lastName ?? ""}</p>
+                      <p className="text-[10px] text-surface-500">{c.email ?? c.status}</p>
+                      <div className="mt-1.5 h-1 rounded-full bg-surface-800">
+                        <div className="h-full rounded-full bg-red-500" style={{ width: "100%" }} />
+                      </div>
                     </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-bold text-red-400">Churned</p>
+                    </div>
+                    <Button variant="outline" size="xs">Intervene</Button>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className={cn(
-                      "text-sm font-bold",
-                      item.risk >= 70 ? "text-red-400" :
-                      item.risk >= 40 ? "text-amber-400" : "text-emerald-400"
-                    )}>
-                      {item.risk}%
-                    </p>
-                    <p className="text-[10px] text-surface-500">churn risk</p>
-                  </div>
-                  <Button variant="outline" size="xs">
-                    Intervene
-                  </Button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Expansion Opportunities */}
@@ -372,107 +350,99 @@ export default function AIInsightsPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-semibold text-surface-200">Expansion Opportunities</h3>
-                <p className="text-xs text-surface-500 mt-0.5">AI-identified upsell signals</p>
+                <p className="text-xs text-surface-500 mt-0.5">VIP contacts without active deals</p>
               </div>
-              <Badge variant="success" size="sm">$186K potential</Badge>
+              {vipNoDeals.length > 0 && (
+                <Badge variant="success" size="sm">{vipNoDeals.length} VIP</Badge>
+              )}
             </div>
-            <div className="space-y-2">
-              {[
-                { name: "James Chen", company: "BuildFast Co", opportunity: "Pro Plan Upgrade", value: 10800, probability: 82 },
-                { name: "Sarah Johnson", company: "TechCorp Inc", opportunity: "Add-on: AI Module", value: 24000, probability: 71 },
-                { name: "Priya Sharma", company: "ScaleX AI", opportunity: "Enterprise Tier", value: 60000, probability: 68 },
-              ].map((item) => (
-                <div key={item.name} className="flex items-center gap-3 rounded-lg border border-surface-800 p-3">
-                  <Avatar name={item.name} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-surface-100">{item.name}</p>
-                    <p className="text-[10px] text-surface-500">{item.opportunity}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] text-emerald-400 font-semibold">
-                        +{formatCurrency(item.value)} ARR
-                      </span>
-                      <span className="text-[10px] text-surface-600">
-                        · {item.probability}% probability
-                      </span>
-                    </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-6"><Loader2 size={16} className="animate-spin text-surface-500" /></div>
+            ) : vipNoDeals.length === 0 && expandInsights.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
+                <ArrowUpRight size={20} className="text-surface-600" />
+                <p className="text-xs text-surface-400">No expansion opportunities yet</p>
+                <p className="text-[11px] text-surface-600">Mark contacts as VIP and close deals to track expansions</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {expandInsights.map(insight => (
+                  <div key={insight.id} className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                    <p className="text-xs font-semibold text-surface-100 mb-1">{insight.title}</p>
+                    <p className="text-[11px] text-surface-500 leading-relaxed">{insight.body}</p>
+                    <Button variant="success" size="xs" className="mt-2">Create proposal</Button>
                   </div>
-                  <Button variant="success" size="xs">
-                    Create proposal
-                  </Button>
-                </div>
-              ))}
-            </div>
+                ))}
+                {vipNoDeals.map(c => (
+                  <div key={c.id} className="flex items-center gap-3 rounded-lg border border-surface-800 p-3">
+                    <Avatar name={`${c.firstName} ${c.lastName ?? ""}`} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-surface-100">{c.firstName} {c.lastName ?? ""}</p>
+                      <p className="text-[10px] text-surface-500">{c.jobTitle ?? "VIP Contact"}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-[10px] text-emerald-400 font-semibold">No active deal</span>
+                      </div>
+                    </div>
+                    <Button variant="success" size="xs">Create deal</Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Scatter plot */}
-        <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-semibold text-surface-200">Contact Intelligence Map</h3>
-              <p className="text-xs text-surface-500 mt-0.5">AI Score vs Revenue contribution</p>
+        {/* Contact Intelligence Map */}
+        {contacts.length > 0 && (
+          <div className="grid grid-cols-2 gap-5">
+            {/* Score Distribution */}
+            <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-5">
+              <h3 className="text-sm font-semibold text-surface-200 mb-1">Score Distribution</h3>
+              <p className="text-xs text-surface-500 mb-4">Contacts by AI score range</p>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={scoreBuckets} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                    <XAxis dataKey="range" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#94a3b8" }} />
+                    <Bar dataKey="count" name="Contacts" fill="#6366f1" radius={[4, 4, 0, 0]} fillOpacity={0.85} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Contact Intelligence Scatter */}
+            <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-5">
+              <h3 className="text-sm font-semibold text-surface-200 mb-1">Contact Intelligence Map</h3>
+              <p className="text-xs text-surface-500 mb-4">AI Score by contact</p>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis type="number" dataKey="x" name="Score" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} label={{ value: "Score", position: "insideBottom", offset: -2, fill: "#475569", fontSize: 10 }} />
+                    <YAxis type="number" dataKey="y" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} hide />
+                    <Tooltip cursor={{ strokeDasharray: "3 3", stroke: "#334155" }}
+                      contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+                      formatter={(_v: unknown, n: string, p: { payload?: { name?: string; x?: number } }) => [`Score: ${p.payload?.x ?? 0}`, p.payload?.name ?? ""]} />
+                    <Scatter data={scatterData}>
+                      {scatterData.map((entry, i) => (
+                        <Cell key={i} fill={STATUS_COLORS[entry.status] ?? "#64748b"} fillOpacity={0.8} />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex items-center gap-4 mt-2 justify-center flex-wrap">
+                {Object.entries(STATUS_COLORS).map(([status, color]) => (
+                  <div key={status} className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                    <span className="text-xs text-surface-500 capitalize">{status}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: -10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis
-                  type="number"
-                  dataKey="x"
-                  name="AI Score"
-                  tick={{ fill: "#64748b", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  label={{ value: "AI Score", position: "insideBottom", offset: -5, fill: "#475569", fontSize: 11 }}
-                />
-                <YAxis
-                  type="number"
-                  dataKey="y"
-                  name="Revenue (K)"
-                  tick={{ fill: "#64748b", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `$${v}K`}
-                />
-                <Tooltip
-                  cursor={{ strokeDasharray: "3 3", stroke: "#334155" }}
-                  contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                  formatter={(v, n, p) => [
-                    n === "x" ? `Score: ${v}` : `$${v}K`,
-                    p.payload.name
-                  ]}
-                />
-                <Scatter data={scatterData} fill="#6366f1">
-                  {scatterData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={
-                        entry.status === "vip" ? "#a78bfa" :
-                        entry.status === "customer" ? "#10b981" :
-                        entry.status === "prospect" ? "#60a5fa" : "#64748b"
-                      }
-                      fillOpacity={0.8}
-                    />
-                  ))}
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex items-center gap-4 mt-2 justify-center">
-            {[
-              { label: "VIP", color: "bg-violet-400" },
-              { label: "Customer", color: "bg-emerald-500" },
-              { label: "Prospect", color: "bg-blue-400" },
-              { label: "Lead", color: "bg-surface-500" },
-            ].map((l) => (
-              <div key={l.label} className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full ${l.color}`} />
-                <span className="text-xs text-surface-500">{l.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
     </AppLayout>
   );

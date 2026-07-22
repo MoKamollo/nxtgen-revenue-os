@@ -1,78 +1,106 @@
 "use client";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Progress } from "@/components/ui/Progress";
-import { mockWorkflows } from "@/lib/data";
-import { formatPercent, timeAgo, cn } from "@/lib/utils";
+import { formatPercent, cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/org";
 import {
-  Plus,
-  Search,
-  Zap,
-  MoreHorizontal,
-  Play,
-  Pause,
-  Copy,
-  BarChart3,
-  Users,
-  CheckCircle2,
-  ArrowRight,
-  Bot,
-  Sparkles,
-  ChevronRight,
-  GitBranch,
-  Clock,
-  Target,
+  Plus, Search, Zap, Play, Pause, Trash2, BarChart3,
+  Users, CheckCircle2, Target, Bot, Sparkles, ChevronRight,
+  GitBranch, Loader2, X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
-const WORKFLOW_TEMPLATES = [
-  {
-    name: "Lead Nurture Sequence",
-    desc: "Automatically nurture new leads with personalized email sequences",
-    steps: 7,
-    category: "Lead Generation",
-    color: "from-brand-500 to-violet-500",
-    icon: Users,
-  },
-  {
-    name: "Trial → Paid Conversion",
-    desc: "Convert trial users to paying customers with targeted touchpoints",
-    steps: 12,
-    category: "Revenue",
-    color: "from-emerald-500 to-cyan-500",
-    icon: Target,
-  },
-  {
-    name: "Churn Prevention",
-    desc: "Detect at-risk accounts and trigger proactive outreach",
-    steps: 5,
-    category: "Retention",
-    color: "from-amber-500 to-orange-500",
-    icon: Zap,
-  },
-  {
-    name: "Onboarding Journey",
-    desc: "Guide new customers through activation milestones",
-    steps: 9,
-    category: "Customer Success",
-    color: "from-violet-500 to-pink-500",
-    icon: CheckCircle2,
-  },
+type Workflow = {
+  id: string; name: string; description: string | null;
+  status: "draft" | "active" | "paused" | "archived";
+  trigger: Record<string, unknown>; steps: unknown[];
+  enrolledCount: number; completedCount: number;
+  conversionRate: string; createdAt: string;
+};
+
+const TEMPLATES = [
+  { name: "Lead Nurture Sequence", desc: "Automatically nurture new leads with personalized email sequences", steps: 7, category: "Lead Generation", color: "from-brand-500 to-violet-500", icon: Users },
+  { name: "Trial → Paid Conversion", desc: "Convert trial users to paying customers with targeted touchpoints", steps: 12, category: "Revenue", color: "from-emerald-500 to-cyan-500", icon: Target },
+  { name: "Churn Prevention", desc: "Detect at-risk accounts and trigger proactive outreach", steps: 5, category: "Retention", color: "from-amber-500 to-orange-500", icon: Zap },
+  { name: "Onboarding Journey", desc: "Guide new customers through activation milestones", steps: 9, category: "Customer Success", color: "from-violet-500 to-pink-500", icon: CheckCircle2 },
+];
+
+const TRIGGER_EVENTS = [
+  { value: "contact.created", label: "New contact created" },
+  { value: "deal.stage_changed", label: "Deal stage changed" },
+  { value: "form.submitted", label: "Form submitted" },
+  { value: "tag.added", label: "Tag added" },
+  { value: "manual", label: "Manual trigger" },
 ];
 
 export default function WorkflowsPage() {
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", triggerEvent: "contact.created" });
 
-  const filtered = mockWorkflows.filter((w) => {
+  const load = useCallback(() => {
+    fetch(apiUrl("/api/workflows"))
+      .then(r => r.json())
+      .then(j => { setWorkflows(j.data ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = workflows.filter(w => {
     const matchSearch = !search || w.name.toLowerCase().includes(search.toLowerCase());
-    const matchTab = activeTab === "all" ||
-      (activeTab === "active" && w.status === "active") ||
-      (activeTab === "paused" && w.status === "paused");
+    const matchTab = activeTab === "all" || w.status === activeTab;
     return matchSearch && matchTab;
   });
+
+  const totalEnrolled = workflows.reduce((s, w) => s + (w.enrolledCount ?? 0), 0);
+  const totalCompleted = workflows.reduce((s, w) => s + (w.completedCount ?? 0), 0);
+  const activeCount = workflows.filter(w => w.status === "active").length;
+  const avgConversion = workflows.length > 0
+    ? workflows.reduce((s, w) => s + parseFloat(w.conversionRate ?? "0"), 0) / workflows.length
+    : 0;
+
+  async function toggleStatus(wf: Workflow) {
+    const newStatus = wf.status === "active" ? "paused" : "active";
+    setWorkflows(prev => prev.map(w => w.id === wf.id ? { ...w, status: newStatus } : w));
+    await fetch(apiUrl(`/api/workflows/${wf.id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+  }
+
+  async function handleDelete(id: string) {
+    setWorkflows(prev => prev.filter(w => w.id !== id));
+    await fetch(apiUrl(`/api/workflows/${id}`), { method: "DELETE" });
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    const res = await fetch(apiUrl("/api/workflows"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: form.name.trim(), description: form.description, trigger: { event: form.triggerEvent } }),
+    });
+    if (res.ok) {
+      const j = await res.json();
+      setWorkflows(prev => [j.data, ...prev]);
+    }
+    setForm({ name: "", description: "", triggerEvent: "contact.created" });
+    setShowModal(false);
+    setSaving(false);
+  }
+
+  const triggerLabel = (wf: Workflow) => {
+    const event = (wf.trigger as Record<string, string>)?.event ?? "manual";
+    return TRIGGER_EVENTS.find(t => t.value === event)?.label ?? event;
+  };
 
   return (
     <AppLayout>
@@ -81,36 +109,30 @@ export default function WorkflowsPage() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-surface-50 tracking-tight">
-                Automation
-              </h1>
+              <h1 className="text-2xl font-bold text-surface-50 tracking-tight">Automation</h1>
               <div className="flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5">
                 <Bot size={11} className="text-violet-400" />
                 <span className="text-[10px] font-semibold text-violet-400">AI Powered</span>
               </div>
             </div>
             <p className="text-sm text-surface-500 mt-0.5">
-              {mockWorkflows.filter(w => w.status === "active").length} active workflows · 1,726 contacts enrolled
+              {activeCount} active workflow{activeCount !== 1 ? "s" : ""}{totalEnrolled > 0 ? ` · ${totalEnrolled.toLocaleString()} contacts enrolled` : ""}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" icon={Sparkles}>
-              AI Generate
-            </Button>
-            <Button variant="gradient" size="sm" icon={Plus}>
-              New Workflow
-            </Button>
+            <Button variant="outline" size="sm" icon={Sparkles}>AI Generate</Button>
+            <Button variant="gradient" size="sm" icon={Plus} onClick={() => setShowModal(true)}>New Workflow</Button>
           </div>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4">
           {[
-            { label: "Active Workflows", value: mockWorkflows.filter(w => w.status === "active").length, icon: Zap, color: "text-brand-400", bg: "bg-brand-500/10" },
-            { label: "Contacts Enrolled", value: "1,726", icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-            { label: "Completions", value: "1,085", icon: CheckCircle2, color: "text-cyan-400", bg: "bg-cyan-500/10" },
-            { label: "Avg Conversion", value: "38.4%", icon: Target, color: "text-amber-400", bg: "bg-amber-500/10" },
-          ].map((stat) => {
+            { label: "Active Workflows", value: activeCount, icon: Zap, color: "text-brand-400", bg: "bg-brand-500/10" },
+            { label: "Contacts Enrolled", value: totalEnrolled.toLocaleString(), icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+            { label: "Completions", value: totalCompleted.toLocaleString(), icon: CheckCircle2, color: "text-cyan-400", bg: "bg-cyan-500/10" },
+            { label: "Avg Conversion", value: formatPercent(avgConversion), icon: Target, color: "text-amber-400", bg: "bg-amber-500/10" },
+          ].map(stat => {
             const Icon = stat.icon;
             return (
               <div key={stat.label} className="rounded-xl border border-surface-800 bg-surface-900/50 p-4">
@@ -130,147 +152,111 @@ export default function WorkflowsPage() {
         <div className="flex items-center gap-3">
           <div className="relative max-w-xs w-full">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search workflows..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-8 rounded-lg border border-surface-700 bg-surface-900 pl-9 pr-3 text-xs text-surface-200 placeholder:text-surface-600 focus:outline-none focus:border-brand-500"
-            />
+            <input type="text" placeholder="Search workflows..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full h-8 rounded-lg border border-surface-700 bg-surface-900 pl-9 pr-3 text-xs text-surface-200 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
           </div>
           <div className="flex items-center rounded-lg border border-surface-700 bg-surface-900 p-0.5">
-            {["all", "active", "paused"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  "px-3 py-1 rounded-md text-xs capitalize transition-all",
-                  activeTab === tab
-                    ? "bg-surface-700 text-surface-100"
-                    : "text-surface-500 hover:text-surface-300"
-                )}
-              >
+            {["all", "active", "paused", "draft"].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={cn("px-3 py-1 rounded-md text-xs capitalize transition-all", activeTab === tab ? "bg-surface-700 text-surface-100" : "text-surface-500 hover:text-surface-300")}>
                 {tab}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Workflows */}
-        <div className="space-y-3">
-          {filtered.map((wf) => (
-            <div
-              key={wf.id}
-              className="rounded-xl border border-surface-800 bg-surface-900/50 hover:border-surface-700 transition-all cursor-pointer group"
-            >
-              <div className="flex items-center gap-4 p-4">
-                {/* Status indicator */}
-                <div className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                  wf.status === "active" ? "bg-emerald-500/15" : "bg-surface-800"
-                )}>
-                  <Zap size={18} className={wf.status === "active" ? "text-emerald-400" : "text-surface-500"} />
-                </div>
-
-                {/* Name & Trigger */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-surface-100">{wf.name}</p>
-                    <StatusBadge status={wf.status} />
+        {/* Workflow list */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><Loader2 size={20} className="animate-spin text-surface-500" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-12 flex flex-col items-center justify-center gap-3 text-center">
+            <Zap size={32} className="text-surface-600" />
+            <p className="text-sm font-semibold text-surface-300">
+              {workflows.length === 0 ? "No workflows yet" : "No workflows match your filter"}
+            </p>
+            <p className="text-xs text-surface-500">
+              {workflows.length === 0 ? "Create your first automation workflow to get started" : "Try changing your search or filter"}
+            </p>
+            {workflows.length === 0 && (
+              <Button variant="outline" size="sm" icon={Plus} onClick={() => setShowModal(true)}>New Workflow</Button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map(wf => (
+              <div key={wf.id} className="rounded-xl border border-surface-800 bg-surface-900/50 hover:border-surface-700 transition-all cursor-pointer group">
+                <div className="flex items-center gap-4 p-4">
+                  <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", wf.status === "active" ? "bg-emerald-500/15" : "bg-surface-800")}>
+                    <Zap size={18} className={wf.status === "active" ? "text-emerald-400" : "text-surface-500"} />
                   </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <Zap size={11} className="text-surface-600" />
-                    <span className="text-xs text-surface-500">{wf.trigger}</span>
-                    <span className="text-surface-700">·</span>
-                    <GitBranch size={11} className="text-surface-600" />
-                    <span className="text-xs text-surface-500">{wf.steps} steps</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-surface-100">{wf.name}</p>
+                      <StatusBadge status={wf.status} />
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Zap size={11} className="text-surface-600" />
+                      <span className="text-xs text-surface-500">{triggerLabel(wf)}</span>
+                      <span className="text-surface-700">·</span>
+                      <GitBranch size={11} className="text-surface-600" />
+                      <span className="text-xs text-surface-500">{(wf.steps as unknown[])?.length ?? 0} steps</span>
+                    </div>
                   </div>
-                </div>
-
-                {/* Metrics */}
-                <div className="hidden lg:grid grid-cols-3 gap-8">
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-surface-100">
-                      {wf.enrolledCount.toLocaleString()}
-                    </p>
-                    <p className="text-[10px] text-surface-600 mt-0.5">Enrolled</p>
+                  <div className="hidden lg:grid grid-cols-3 gap-8">
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-surface-100">{(wf.enrolledCount ?? 0).toLocaleString()}</p>
+                      <p className="text-[10px] text-surface-600 mt-0.5">Enrolled</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-emerald-400">{(wf.completedCount ?? 0).toLocaleString()}</p>
+                      <p className="text-[10px] text-surface-600 mt-0.5">Completed</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-brand-400">{formatPercent(parseFloat(wf.conversionRate ?? "0"))}</p>
+                      <p className="text-[10px] text-surface-600 mt-0.5">Conversion</p>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-emerald-400">
-                      {wf.completedCount.toLocaleString()}
-                    </p>
-                    <p className="text-[10px] text-surface-600 mt-0.5">Completed</p>
+                  <div className="hidden xl:block w-32">
+                    <div className="flex items-center justify-between text-[10px] text-surface-500 mb-1">
+                      <span>Active</span>
+                      <span>{(wf.enrolledCount ?? 0) - (wf.completedCount ?? 0)}</span>
+                    </div>
+                    <Progress value={wf.completedCount ?? 0} max={wf.enrolledCount || 1} color={parseFloat(wf.conversionRate ?? "0") >= 70 ? "green" : parseFloat(wf.conversionRate ?? "0") >= 40 ? "brand" : "amber"} />
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-brand-400">
-                      {formatPercent(wf.conversionRate)}
-                    </p>
-                    <p className="text-[10px] text-surface-600 mt-0.5">Conversion</p>
+                  <div className="flex items-center gap-1.5 ml-2">
+                    <button onClick={e => { e.stopPropagation(); toggleStatus(wf); }}
+                      className={cn("flex h-7 w-7 items-center justify-center rounded-lg transition-all", wf.status === "active" ? "text-amber-400 hover:bg-amber-500/10" : "text-emerald-400 hover:bg-emerald-500/10")}>
+                      {wf.status === "active" ? <Pause size={13} /> : <Play size={13} />}
+                    </button>
+                    <button className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all">
+                      <BarChart3 size={13} />
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); handleDelete(wf.id); }}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                      <Trash2 size={13} />
+                    </button>
+                    <ChevronRight size={14} className="text-surface-700 group-hover:text-surface-500 transition-colors ml-1" />
                   </div>
-                </div>
-
-                {/* Progress */}
-                <div className="hidden xl:block w-32">
-                  <div className="flex items-center justify-between text-[10px] text-surface-500 mb-1">
-                    <span>Active</span>
-                    <span>{wf.enrolledCount - wf.completedCount}</span>
-                  </div>
-                  <Progress
-                    value={wf.completedCount}
-                    max={wf.enrolledCount}
-                    color={wf.conversionRate >= 70 ? "green" : wf.conversionRate >= 40 ? "brand" : "amber"}
-                  />
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-1.5 ml-2">
-                  <button className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-lg transition-all",
-                    wf.status === "active"
-                      ? "text-amber-400 hover:bg-amber-500/10"
-                      : "text-emerald-400 hover:bg-emerald-500/10"
-                  )}>
-                    {wf.status === "active" ? <Pause size={13} /> : <Play size={13} />}
-                  </button>
-                  <button className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all">
-                    <Copy size={13} />
-                  </button>
-                  <button className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all">
-                    <BarChart3 size={13} />
-                  </button>
-                  <button className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all">
-                    <MoreHorizontal size={14} />
-                  </button>
-                  <ChevronRight size={14} className="text-surface-700 group-hover:text-surface-500 transition-colors ml-1" />
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Template Library */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-surface-200">Workflow Templates</h2>
-              <Badge variant="purple" size="sm">
-                <Sparkles size={10} className="mr-0.5" />
-                AI-generated
-              </Badge>
+              <Badge variant="purple" size="sm"><Sparkles size={10} className="mr-0.5" />AI-generated</Badge>
             </div>
-            <Button variant="ghost" size="sm">
-              Browse library →
-            </Button>
+            <Button variant="ghost" size="sm">Browse library →</Button>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {WORKFLOW_TEMPLATES.map((template) => {
+            {TEMPLATES.map(template => {
               const Icon = template.icon;
               return (
-                <div
-                  key={template.name}
-                  className="rounded-xl border border-surface-800 bg-surface-900/50 p-4 cursor-pointer hover:border-surface-700 transition-all group"
-                >
+                <div key={template.name} className="rounded-xl border border-surface-800 bg-surface-900/50 p-4 cursor-pointer hover:border-surface-700 transition-all group">
                   <div className={`h-8 w-8 rounded-lg bg-gradient-to-br ${template.color} flex items-center justify-center mb-3`}>
                     <Icon size={16} className="text-white" />
                   </div>
@@ -278,11 +264,11 @@ export default function WorkflowsPage() {
                   <p className="text-[11px] text-surface-500 mt-1 leading-relaxed">{template.desc}</p>
                   <div className="flex items-center justify-between mt-3">
                     <span className="text-[10px] text-surface-600">{template.steps} steps</span>
-                    <span className="text-[10px] bg-surface-800 text-surface-400 rounded px-1.5 py-0.5">
-                      {template.category}
-                    </span>
+                    <span className="text-[10px] bg-surface-800 text-surface-400 rounded px-1.5 py-0.5">{template.category}</span>
                   </div>
-                  <button className="mt-3 w-full flex items-center justify-center gap-1.5 h-7 rounded-lg border border-dashed border-surface-700 text-xs text-surface-500 hover:border-brand-500/40 hover:text-brand-400 transition-all group-hover:border-brand-500/40 group-hover:text-brand-400">
+                  <button
+                    onClick={() => { setForm(f => ({ ...f, name: template.name })); setShowModal(true); }}
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 h-7 rounded-lg border border-dashed border-surface-700 text-xs text-surface-500 hover:border-brand-500/40 hover:text-brand-400 transition-all">
                     <Plus size={12} /> Use template
                   </button>
                 </div>
@@ -291,6 +277,44 @@ export default function WorkflowsPage() {
           </div>
         </div>
       </div>
+
+      {/* New Workflow Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-surface-800">
+              <h2 className="text-sm font-semibold text-surface-100">New Workflow</h2>
+              <button onClick={() => setShowModal(false)} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
+            </div>
+            <form onSubmit={handleCreate} className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-surface-400">Workflow Name *</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
+                  placeholder="e.g. Lead Nurture Sequence"
+                  className="mt-1 w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-surface-400">Description</label>
+                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="What does this workflow do?"
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-surface-700 bg-surface-800 px-3 py-2 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-surface-400">Trigger Event</label>
+                <select value={form.triggerEvent} onChange={e => setForm(f => ({ ...f, triggerEvent: e.target.value }))}
+                  className="mt-1 w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 focus:outline-none focus:border-brand-500">
+                  {TRIGGER_EVENTS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowModal(false)}>Cancel</Button>
+                <Button type="submit" variant="gradient" size="sm" loading={saving}>Create Workflow</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

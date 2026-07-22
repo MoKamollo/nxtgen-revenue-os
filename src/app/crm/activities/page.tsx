@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { timeAgo, cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/org";
 import { Plus, Mail, Phone, Calendar, FileText, MessageSquare, Clock, CheckCircle, X, Loader2, Activity } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -33,7 +34,7 @@ export default function ActivitiesPage() {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/activities").then(r => r.json())
+    fetch(apiUrl("/api/activities")).then(r => r.json())
       .then(j => { setActivities(j.data ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   };
@@ -47,7 +48,7 @@ export default function ActivitiesPage() {
     e.preventDefault();
     if (!form.subject.trim()) return;
     setSaving(true);
-    await fetch("/api/activities", {
+    await fetch(apiUrl("/api/activities"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

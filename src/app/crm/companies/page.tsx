@@ -2,6 +2,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/org";
 import { Plus, Search, Building2, Globe, Users, X, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -24,7 +25,7 @@ export default function CompaniesPage() {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/companies").then(r => r.json())
+    fetch(apiUrl("/api/companies")).then(r => r.json())
       .then(j => { setCompanies(j.data ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   };
@@ -40,7 +41,7 @@ export default function CompaniesPage() {
     e.preventDefault();
     if (!form.name.trim()) return;
     setSaving(true);
-    await fetch("/api/companies", {
+    await fetch(apiUrl("/api/companies"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -53,7 +54,7 @@ export default function CompaniesPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this company?")) return;
-    await fetch(`/api/companies/${id}`, { method: "DELETE" });
+    await fetch(apiUrl(`/api/companies/${id}`), { method: "DELETE" });
     setCompanies(prev => prev.filter(c => c.id !== id));
   };
 

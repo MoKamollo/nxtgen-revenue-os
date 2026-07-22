@@ -423,7 +423,16 @@ export default function AIInsightsPage() {
                     <YAxis type="number" dataKey="y" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} hide />
                     <Tooltip cursor={{ strokeDasharray: "3 3", stroke: "#334155" }}
                       contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                      formatter={(_v: unknown, n: string, p: { payload?: { name?: string; x?: number } }) => [`Score: ${p.payload?.x ?? 0}`, p.payload?.name ?? ""]} />
+                      content={({ payload }) => {
+                        if (!payload?.length) return null;
+                        const d = payload[0].payload as { name: string; x: number };
+                        return (
+                          <div className="rounded-lg border border-surface-700 bg-surface-900 p-2 text-xs">
+                            <p className="font-semibold text-surface-200">{d.name}</p>
+                            <p className="text-surface-400">Score: {d.x}</p>
+                          </div>
+                        );
+                      }} />
                     <Scatter data={scatterData}>
                       {scatterData.map((entry, i) => (
                         <Cell key={i} fill={STATUS_COLORS[entry.status] ?? "#64748b"} fillOpacity={0.8} />

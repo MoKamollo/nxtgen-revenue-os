@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/org";
 import { Plus, CheckSquare, Clock, CheckCircle2, X, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -27,7 +28,7 @@ export default function TasksPage() {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/tasks").then(r => r.json())
+    fetch(apiUrl("/api/tasks")).then(r => r.json())
       .then(j => { setTasks(j.data ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   };
@@ -39,7 +40,7 @@ export default function TasksPage() {
 
   const toggleDone = async (task: Task) => {
     const newStatus = task.status === "completed" ? "todo" : "completed";
-    await fetch(`/api/tasks/${task.id}`, {
+    await fetch(apiUrl(`/api/tasks/${task.id}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
@@ -48,7 +49,7 @@ export default function TasksPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+    await fetch(apiUrl(`/api/tasks/${id}`), { method: "DELETE" });
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 

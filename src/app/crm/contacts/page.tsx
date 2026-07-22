@@ -72,7 +72,7 @@ export default function ContactsPage() {
     e.preventDefault();
     if (!form.firstName.trim()) return;
     setSaving(true);
-    await fetch("/api/contacts", {
+    await fetch(apiUrl("/api/contacts"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -85,7 +85,7 @@ export default function ContactsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this contact?")) return;
-    await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+    await fetch(apiUrl(`/api/contacts/${id}`), { method: "DELETE" });
     setAllContacts(prev => prev.filter(c => c.id !== id));
   };
 

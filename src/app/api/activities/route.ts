@@ -4,11 +4,10 @@ import { activities } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
+  const orgId = request.headers.get("x-tenant-id");
+  if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   try {
-    const orgId = request.headers.get("x-tenant-id");
-    const results = orgId
-      ? await db.select().from(activities).where(eq(activities.organizationId, orgId)).orderBy(desc(activities.createdAt)).limit(50)
-      : await db.select().from(activities).orderBy(desc(activities.createdAt)).limit(50);
+    const results = await db.select().from(activities).where(eq(activities.organizationId, orgId)).orderBy(desc(activities.createdAt)).limit(50);
     return NextResponse.json({ data: results, total: results.length });
   } catch {
     return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });

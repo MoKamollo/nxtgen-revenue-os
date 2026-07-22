@@ -76,7 +76,8 @@ export default function CampaignsPage() {
               Email Campaigns
             </h1>
             <p className="text-sm text-surface-500 mt-0.5">
-              {allCampaigns.length} campaigns · Last sent 2h ago
+              {allCampaigns.length} campaign{allCampaigns.length !== 1 ? "s" : ""}
+              {allCampaigns.filter(c => c.status === "sent").length > 0 ? ` · ${allCampaigns.filter(c => c.status === "sent").length} sent` : ""}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -89,28 +90,41 @@ export default function CampaignsPage() {
           </div>
         </div>
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { label: "Emails Sent (30d)", value: formatNumber(21320), icon: Send, color: "text-brand-400", bg: "bg-brand-500/10" },
-            { label: "Avg Open Rate", value: formatPercent(38.2), icon: Eye, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-            { label: "Avg Click Rate", value: formatPercent(31.4), icon: MousePointerClick, color: "text-violet-400", bg: "bg-violet-500/10" },
-            { label: "Revenue Attributed", value: "$105.6K", icon: DollarSign, color: "text-amber-400", bg: "bg-amber-500/10" },
-          ].map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div key={stat.label} className="rounded-xl border border-surface-800 bg-surface-900/50 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.bg}`}>
-                    <Icon size={15} className={stat.color} />
+        {/* Summary Stats — derived from real campaign data */}
+        {(() => {
+          const sent = allCampaigns.reduce((s, c) => s + (c.stats?.sent ?? 0), 0);
+          const sentCampaigns = allCampaigns.filter(c => (c.stats?.sent ?? 0) > 0);
+          const avgOpen = sentCampaigns.length > 0
+            ? sentCampaigns.reduce((s, c) => s + (c.stats.delivered > 0 ? (c.stats.opened / c.stats.delivered) * 100 : 0), 0) / sentCampaigns.length
+            : 0;
+          const avgClick = sentCampaigns.length > 0
+            ? sentCampaigns.reduce((s, c) => s + (c.stats.opened > 0 ? (c.stats.clicked / c.stats.opened) * 100 : 0), 0) / sentCampaigns.length
+            : 0;
+          const revenue = allCampaigns.reduce((s, c) => s + (c.stats?.revenue ?? 0), 0);
+          return (
+            <div className="grid grid-cols-4 gap-4">
+              {[
+                { label: "Emails Sent", value: formatNumber(sent), icon: Send, color: "text-brand-400", bg: "bg-brand-500/10" },
+                { label: "Avg Open Rate", value: sent > 0 ? formatPercent(avgOpen) : "—", icon: Eye, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+                { label: "Avg Click Rate", value: sent > 0 ? formatPercent(avgClick) : "—", icon: MousePointerClick, color: "text-violet-400", bg: "bg-violet-500/10" },
+                { label: "Revenue Attributed", value: revenue > 0 ? `$${(revenue / 1000).toFixed(1)}K` : "—", icon: DollarSign, color: "text-amber-400", bg: "bg-amber-500/10" },
+              ].map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={stat.label} className="rounded-xl border border-surface-800 bg-surface-900/50 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.bg}`}>
+                        <Icon size={15} className={stat.color} />
+                      </div>
+                      <span className="text-xs text-surface-500">{stat.label}</span>
+                    </div>
+                    <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
                   </div>
-                  <span className="text-xs text-surface-500">{stat.label}</span>
-                </div>
-                <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Toolbar */}
         <div className="flex items-center gap-3">

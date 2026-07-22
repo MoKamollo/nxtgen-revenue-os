@@ -1,32 +1,54 @@
 "use client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { formatNumber, formatPercent, formatCurrency } from "@/lib/utils";
-import { Plus, Megaphone, TrendingUp, Share2, FileText, BarChart3 } from "lucide-react";
+import { formatNumber, formatCurrency } from "@/lib/utils";
+import { apiUrl } from "@/lib/org";
+import { Plus, Megaphone, TrendingUp, BarChart3, Mail, MessageSquare, Zap, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 
-const campaigns = [
-  { id: "mc1", name: "Q4 Growth Sprint", type: "Multi-channel", status: "active", channels: ["Email", "SMS", "Social"], leads: 2847, conversions: 234, revenue: 184200, roas: 4.2 },
-  { id: "mc2", name: "Product Launch — AI Suite", type: "Launch", status: "scheduled", channels: ["Email", "Paid Ads"], leads: 0, conversions: 0, revenue: 0, roas: 0 },
-  { id: "mc3", name: "Black Friday 2025", type: "Promotional", status: "draft", channels: ["Email", "SMS", "Social", "Push"], leads: 0, conversions: 0, revenue: 0, roas: 0 },
-  { id: "mc4", name: "Customer Referral Program", type: "Referral", status: "active", channels: ["Email", "In-app"], leads: 892, conversions: 124, revenue: 62400, roas: 8.1 },
-];
+type Campaign = {
+  id: string; name: string; type: string; status: string;
+  subject: string | null; scheduledAt: string | null; sentAt: string | null;
+  stats: { sent: number; delivered: number; opened: number; clicked: number; revenue: number };
+};
 
-const statusColors: Record<string, string> = {
-  active: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+const TYPE_ICONS: Record<string, typeof Mail> = {
+  email: Mail, sms: MessageSquare, push: Zap, whatsapp: MessageSquare, social: TrendingUp,
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  sending:   "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  sent:      "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
   scheduled: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-  draft: "text-surface-400 bg-surface-800 border-surface-700",
-  completed: "text-violet-400 bg-violet-500/10 border-violet-500/20",
+  draft:     "text-surface-400 bg-surface-800 border-surface-700",
+  paused:    "text-amber-400 bg-amber-500/10 border-amber-500/20",
+  cancelled: "text-red-400 bg-red-500/10 border-red-500/20",
 };
 
 export default function MarketingCampaignsPage() {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(apiUrl("/api/campaigns"))
+      .then(r => r.json())
+      .then(j => { setCampaigns(j.data ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const active    = campaigns.filter(c => c.status === "sending" || c.status === "sent").length;
+  const totalSent = campaigns.reduce((s, c) => s + (c.stats?.sent ?? 0), 0);
+  const revenue   = campaigns.reduce((s, c) => s + (c.stats?.revenue ?? 0), 0);
+
   return (
     <AppLayout>
       <div className="p-6 space-y-5 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-surface-50 tracking-tight">Marketing Campaigns</h1>
-            <p className="text-sm text-surface-500 mt-0.5">Multi-channel campaign management</p>
+            <p className="text-sm text-surface-500 mt-0.5">
+              {campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""}{active > 0 ? ` · ${active} active` : ""}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" icon={BarChart3}>Attribution</Button>
@@ -34,13 +56,14 @@ export default function MarketingCampaignsPage() {
           </div>
         </div>
 
+        {/* Stats derived from real data */}
         <div className="grid grid-cols-4 gap-4">
           {[
-            { label: "Active Campaigns", value: "2", icon: Megaphone, color: "text-brand-400" },
-            { label: "Total Leads (30d)", value: formatNumber(3739), icon: TrendingUp, color: "text-emerald-400" },
-            { label: "Revenue Attributed", value: formatCurrency(246600), icon: TrendingUp, color: "text-amber-400" },
-            { label: "Avg ROAS", value: "5.7x", icon: BarChart3, color: "text-violet-400" },
-          ].map((stat) => {
+            { label: "Active Campaigns",    value: active,                          icon: Megaphone,  color: "text-brand-400" },
+            { label: "Total Emails Sent",   value: formatNumber(totalSent),         icon: TrendingUp, color: "text-emerald-400" },
+            { label: "Revenue Attributed",  value: revenue > 0 ? formatCurrency(revenue) : "—", icon: TrendingUp, color: "text-amber-400" },
+            { label: "Total Campaigns",     value: campaigns.length,                icon: BarChart3,  color: "text-violet-400" },
+          ].map(stat => {
             const Icon = stat.icon;
             return (
               <div key={stat.label} className="rounded-xl border border-surface-800 bg-surface-900/50 p-4">
@@ -54,50 +77,65 @@ export default function MarketingCampaignsPage() {
           })}
         </div>
 
-        <div className="space-y-3">
-          {campaigns.map((campaign) => (
-            <div key={campaign.id} className="rounded-xl border border-surface-800 bg-surface-900/50 p-4 hover:border-surface-700 transition-all cursor-pointer">
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10">
-                  <Megaphone size={18} className="text-brand-400" />
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><Loader2 size={20} className="animate-spin text-surface-500" /></div>
+        ) : campaigns.length === 0 ? (
+          <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-12 flex flex-col items-center justify-center gap-3 text-center">
+            <Megaphone size={32} className="text-surface-600" />
+            <p className="text-sm font-semibold text-surface-300">No campaigns yet</p>
+            <p className="text-xs text-surface-500">Create your first campaign to start reaching your audience</p>
+            <Button variant="outline" size="sm" icon={Plus}>New Campaign</Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {campaigns.map(campaign => {
+              const Icon = TYPE_ICONS[campaign.type] ?? Mail;
+              const openRate = campaign.stats.delivered > 0 ? Math.round((campaign.stats.opened / campaign.stats.delivered) * 100) : 0;
+              return (
+                <div key={campaign.id} className="rounded-xl border border-surface-800 bg-surface-900/50 p-4 hover:border-surface-700 transition-all cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10">
+                      <Icon size={18} className="text-brand-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-surface-100">{campaign.name}</p>
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border capitalize ${STATUS_COLORS[campaign.status] ?? STATUS_COLORS.draft}`}>
+                          {campaign.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-surface-500 capitalize">{campaign.type}</span>
+                        {campaign.subject && (
+                          <>
+                            <span className="text-surface-700">·</span>
+                            <span className="text-xs text-surface-600 truncate max-w-64">{campaign.subject}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {(campaign.stats?.sent ?? 0) > 0 && (
+                      <div className="hidden lg:grid grid-cols-3 gap-6">
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-surface-100">{formatNumber(campaign.stats.sent)}</p>
+                          <p className="text-[10px] text-surface-600">Sent</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-emerald-400">{openRate}%</p>
+                          <p className="text-[10px] text-surface-600">Open Rate</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-amber-400">{campaign.stats.revenue > 0 ? formatCurrency(campaign.stats.revenue) : "—"}</p>
+                          <p className="text-[10px] text-surface-600">Revenue</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-surface-100">{campaign.name}</p>
-                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${statusColors[campaign.status]}`}>
-                      {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-surface-500">{campaign.type}</span>
-                    <span className="text-surface-700">·</span>
-                    <div className="flex items-center gap-1">
-                      {campaign.channels.map((ch) => (
-                        <span key={ch} className="text-[10px] bg-surface-800 text-surface-400 rounded px-1.5 py-0.5">{ch}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                {campaign.revenue > 0 && (
-                  <div className="hidden lg:grid grid-cols-3 gap-6">
-                    <div className="text-center">
-                      <p className="text-xs font-bold text-surface-100">{formatNumber(campaign.leads)}</p>
-                      <p className="text-[10px] text-surface-600">Leads</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-bold text-emerald-400">{campaign.conversions}</p>
-                      <p className="text-[10px] text-surface-600">Converted</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-bold text-amber-400">{formatCurrency(campaign.revenue)}</p>
-                      <p className="text-[10px] text-surface-600">Revenue</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </AppLayout>
   );

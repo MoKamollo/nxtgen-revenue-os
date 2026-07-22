@@ -54,7 +54,7 @@ export default function DealsPage() {
     e.preventDefault();
     if (!form.name.trim()) return;
     setSaving(true);
-    await fetch("/api/deals", {
+    await fetch(apiUrl("/api/deals"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -74,7 +74,7 @@ export default function DealsPage() {
   const moveStage = async (id: string, newStage: string) => {
     const stageConf = KANBAN_STAGES.find(s => s.id === newStage);
     setAllDeals(prev => prev.map(d => d.id === id ? { ...d, stage: newStage, probability: stageConf?.prob ?? d.probability } : d));
-    await fetch(`/api/deals/${id}`, {
+    await fetch(apiUrl(`/api/deals/${id}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stage: newStage, probability: stageConf?.prob }),
@@ -84,7 +84,7 @@ export default function DealsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this deal?")) return;
     setAllDeals(prev => prev.filter(d => d.id !== id));
-    await fetch(`/api/deals/${id}`, { method: "DELETE" });
+    await fetch(apiUrl(`/api/deals/${id}`), { method: "DELETE" });
   };
 
   const filtered = allDeals.filter(d =>

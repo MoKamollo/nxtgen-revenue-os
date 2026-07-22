@@ -227,7 +227,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
       <div className="shrink-0 border-t border-surface-800 p-3">
         {collapsed ? (
           <div className="flex justify-center">
-            <Avatar name="Alex Rivera" size="sm" status="online" />
+            <Avatar name={userName} size="sm" status="online" />
           </div>
         ) : (
           <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-surface-800/60 cursor-pointer transition-colors">

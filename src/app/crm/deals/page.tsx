@@ -210,11 +210,23 @@ export default function DealsPage() {
                               <div className="h-1 rounded-full bg-surface-800 mb-2">
                                 <div className="h-full rounded-full transition-all" style={{ width: `${deal.probability}%`, backgroundColor: stage.color }} />
                               </div>
-                              {nextStage && stage.id !== "closed_won" && stage.id !== "closed_lost" && (
-                                <button onClick={() => moveStage(deal.id, nextStage.id)}
-                                  className="opacity-0 group-hover:opacity-100 w-full flex items-center justify-center gap-1 h-6 rounded-lg bg-surface-800 hover:bg-surface-700 text-[11px] text-surface-400 transition-all">
-                                  Move to {nextStage.label} <ChevronRight size={11} />
-                                </button>
+                              {stage.id !== "closed_won" && stage.id !== "closed_lost" && (
+                                <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-all">
+                                  <button onClick={() => moveStage(deal.id, "closed_won")}
+                                    className="flex-1 flex items-center justify-center gap-1 h-6 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] text-emerald-400 font-semibold transition-all">
+                                    Won
+                                  </button>
+                                  <button onClick={() => moveStage(deal.id, "closed_lost")}
+                                    className="flex-1 flex items-center justify-center gap-1 h-6 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-[11px] text-red-400 font-semibold transition-all">
+                                    Lost
+                                  </button>
+                                  {nextStage && nextStage.id !== "closed_won" && (
+                                    <button onClick={() => moveStage(deal.id, nextStage.id)}
+                                      className="flex-1 flex items-center justify-center gap-1 h-6 rounded-lg bg-surface-800 hover:bg-surface-700 text-[11px] text-surface-400 transition-all">
+                                      Next <ChevronRight size={11} />
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );

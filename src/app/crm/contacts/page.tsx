@@ -55,6 +55,7 @@ export default function ContactsPage() {
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editContact, setEditContact] = useState<Contact | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ firstName:"", lastName:"", email:"", phone:"", status:"lead", jobTitle:"", source:"" });
 
@@ -68,17 +69,38 @@ export default function ContactsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const openCreate = () => {
+    setEditContact(null);
+    setForm({ firstName:"", lastName:"", email:"", phone:"", status:"lead", jobTitle:"", source:"" });
+    setShowModal(true);
+  };
+
+  const openEdit = (c: Contact) => {
+    setEditContact(c);
+    setForm({ firstName: c.firstName, lastName: c.lastName ?? "", email: c.email ?? "", phone: c.phone ?? "", status: c.status, jobTitle: c.jobTitle ?? "", source: c.source ?? "" });
+    setShowModal(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.firstName.trim()) return;
     setSaving(true);
-    await fetch(apiUrl("/api/contacts"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    if (editContact) {
+      await fetch(apiUrl(`/api/contacts/${editContact.id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+    } else {
+      await fetch(apiUrl("/api/contacts"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+    }
     setSaving(false);
     setShowModal(false);
+    setEditContact(null);
     setForm({ firstName:"", lastName:"", email:"", phone:"", status:"lead", jobTitle:"", source:"" });
     load();
   };
@@ -134,7 +156,7 @@ export default function ContactsPage() {
             <Button variant="outline" size="sm" icon={Download}>
               Export
             </Button>
-            <Button variant="gradient" size="sm" icon={Plus} onClick={() => setShowModal(true)}>
+            <Button variant="gradient" size="sm" icon={Plus} onClick={openCreate}>
               Add Contact
             </Button>
           </div>
@@ -386,6 +408,9 @@ export default function ContactsPage() {
                           <button className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
                             <Phone size={12} />
                           </button>
+                          <button onClick={() => openEdit(contact)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all">
+                            <RefreshCcw size={12} />
+                          </button>
                           <button onClick={() => handleDelete(contact.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
                             <X size={12} />
                           </button>
@@ -488,10 +513,10 @@ export default function ContactsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl border border-surface-700 bg-surface-900 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
-              <h2 className="text-sm font-bold text-surface-100">Add Contact</h2>
+              <h2 className="text-sm font-bold text-surface-100">{editContact ? "Edit Contact" : "Add Contact"}</h2>
               <button onClick={() => setShowModal(false)} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
             </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-surface-400 mb-1.5">First name *</label>
@@ -553,7 +578,7 @@ export default function ContactsPage() {
                 <button type="submit" disabled={saving}
                   className="h-9 px-4 rounded-lg bg-gradient-to-r from-brand-500 to-blue-500 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
                   {saving && <Loader2 size={13} className="animate-spin" />}
-                  {saving ? "Saving…" : "Add Contact"}
+                  {saving ? "Saving…" : editContact ? "Save Changes" : "Add Contact"}
                 </button>
               </div>
             </form>

@@ -115,10 +115,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#04080F] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-2 mb-8">
-          {/* Clip to NxtGen portion only — white Stack script starts past 70% of SVG width */}
-          <div style={{ width: 158, height: 32, overflow: "hidden" }}>
+          <a href="/" style={{ width: 158, height: 32, overflow: "hidden", display: "block" }}>
             <img src="/nxg-logo-dark.svg" alt="NxtGen" style={{ height: 32, width: "auto" }} />
-          </div>
+          </a>
           <span className="text-sm font-semibold tracking-widest text-violet-400 uppercase">Convert</span>
         </div>
         <Suspense>

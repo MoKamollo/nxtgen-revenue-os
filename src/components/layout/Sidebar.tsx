@@ -205,7 +205,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex h-14 shrink-0 items-center border-b border-surface-800 px-4">
-        <div className="flex items-center gap-2.5">
+        <a href="/" className="flex items-center gap-2.5">
           <div style={{ width: collapsed ? 28 : 110, height: 22, overflow: "hidden", flexShrink: 0 }}>
             <img src="/nxg-logo-dark.svg" alt="NxtGen" style={{ height: 22, width: "auto" }} />
           </div>
@@ -214,7 +214,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
               Convert
             </span>
           )}
-        </div>
+        </a>
       </div>
 
       {/* Navigation */}

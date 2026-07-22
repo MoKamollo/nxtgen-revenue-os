@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const sessionToken = signSession({ userId, tenantId, email, name, role, plan });
+  const sessionToken = await signSession({ userId, tenantId, email, name, role, plan });
   const response = NextResponse.redirect(new URL("/dashboard", request.url));
   response.headers.set("Set-Cookie", cookieHeader(sessionToken));
   return response;

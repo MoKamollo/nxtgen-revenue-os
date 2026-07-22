@@ -1,8 +1,6 @@
-import { createHmac } from "crypto";
-
 const SECRET = process.env.SPACE_SSO_SECRET ?? "dev-secret-change-in-prod";
 const COOKIE_NAME = "convert_sess";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 
 export interface SessionPayload {
   userId: string;
@@ -17,23 +15,36 @@ function b64url(str: string): string {
   return Buffer.from(str).toString("base64url");
 }
 
-function sign(header: string, body: string): string {
-  return createHmac("sha256", SECRET)
-    .update(`${header}.${body}`)
-    .digest("base64url");
+async function getKey(): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
 }
 
-export function signSession(payload: SessionPayload): string {
+async function sign(header: string, body: string): Promise<string> {
+  const key = await getKey();
+  const data = new TextEncoder().encode(`${header}.${body}`);
+  const sig = await crypto.subtle.sign("HMAC", key, data);
+  return Buffer.from(sig).toString("base64url");
+}
+
+export async function signSession(payload: SessionPayload): Promise<string> {
   const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const body = b64url(JSON.stringify({ ...payload, iat: Math.floor(Date.now() / 1000) }));
-  return `${header}.${body}.${sign(header, body)}`;
+  const sig = await sign(header, body);
+  return `${header}.${body}.${sig}`;
 }
 
-export function verifySession(token: string): SessionPayload | null {
+export async function verifySession(token: string): Promise<SessionPayload | null> {
   try {
     const [header, body, sig] = token.split(".");
     if (!header || !body || !sig) return null;
-    if (sign(header, body) !== sig) return null;
+    const expected = await sign(header, body);
+    if (expected !== sig) return null;
     return JSON.parse(Buffer.from(body, "base64url").toString());
   } catch {
     return null;

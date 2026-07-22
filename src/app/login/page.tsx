@@ -102,8 +102,8 @@ function LoginForm() {
 
       <p className="text-center text-xs text-[#475569] mt-6">
         No account?{" "}
-        <a href="https://space.nxtgen-stack.com/sign-up" className="text-[#7B6EF6] hover:underline">
-          Sign up at NxtGen Space
+        <a href="/sign-up" className="text-[#7B6EF6] hover:underline">
+          Create one
         </a>
       </p>
     </div>

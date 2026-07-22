@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession, COOKIE_NAME } from "@/lib/session";
 
-const PUBLIC = ["/login", "/auth/callback", "/api/auth/login", "/api/auth/logout"];
+const PUBLIC = ["/login", "/sign-up", "/auth/callback", "/api/auth/login", "/api/auth/logout", "/api/auth/register"];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC.some((p) => pathname.startsWith(p))) {
@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get(COOKIE_NAME)?.value;
-  const session = token ? verifySession(token) : null;
+  const session = token ? await verifySession(token) : null;
 
   if (!session) {
     const loginUrl = new URL("/login", request.url);

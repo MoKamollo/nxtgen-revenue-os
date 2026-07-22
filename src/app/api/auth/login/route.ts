@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const token = signSession({ userId, tenantId, email, name, role, plan });
+    const token = await signSession({ userId, tenantId, email, name, role, plan });
 
     const next = request.nextUrl.searchParams.get("next") ?? "/dashboard";
     const response = NextResponse.json({ ok: true, redirect: next });

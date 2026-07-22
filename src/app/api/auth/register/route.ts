@@ -5,10 +5,12 @@ import { eq } from "drizzle-orm";
 import { signSession, cookieHeader } from "@/lib/session";
 
 const SPACE_REGISTER_URL = "https://space.nxtgen-stack.com/api/auth/register.php";
-const SPACE_LOGIN_URL    = "https://space.nxtgen-stack.com/api/auth/login.php";
 
-const toUUID = (hex: string) =>
-  `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
+function spaceIdToUUID(id: string): string {
+  // Strip any prefix (usr_, tnt_, etc.) then pad/trim to 32 hex chars
+  const hex = id.replace(/^[a-z]+_/i, "").replace(/[^a-f0-9]/gi, "").padEnd(32, "0").slice(0, 32);
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +20,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name, email and password are required." }, { status: 400 });
     }
 
-    // Register on Space
     const regRes = await fetch(SPACE_REGISTER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -27,27 +28,13 @@ export async function POST(request: NextRequest) {
 
     const regData = await regRes.json();
 
-    if (!regRes.ok) {
+    if (!regRes.ok || !regData.user) {
       return NextResponse.json({ error: regData.error ?? "Registration failed." }, { status: 400 });
     }
 
-    // Auto-login to get session data
-    const loginRes = await fetch(SPACE_LOGIN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    const { id: userId, tenant_id: rawTenantId, role, plan } = regData.user;
+    const tenantId = rawTenantId.includes("-") ? rawTenantId : spaceIdToUUID(rawTenantId);
 
-    const loginData = await loginRes.json();
-
-    if (!loginRes.ok || !loginData.user) {
-      return NextResponse.json({ error: "Account created. Please sign in." }, { status: 200 });
-    }
-
-    const { id: userId, tenant_id: rawTenantId, role, plan } = loginData.user;
-    const tenantId = rawTenantId.includes("-") ? rawTenantId : toUUID(rawTenantId);
-
-    // Auto-create org in Convert DB
     const existing = await db
       .select({ id: organizations.id })
       .from(organizations)

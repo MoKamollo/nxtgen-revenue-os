@@ -2,7 +2,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Mail, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle } from "lucide-react";
 
 function SignUpForm() {
   const router = useRouter();
@@ -12,6 +12,7 @@ function SignUpForm() {
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
+  const [verified, setVerified] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,6 +33,11 @@ function SignUpForm() {
         return;
       }
 
+      if (data.verify) {
+        setVerified(true);
+        return;
+      }
+
       const next = params.get("next") ?? data.redirect ?? "/dashboard";
       router.push(next);
     } catch {
@@ -40,6 +46,17 @@ function SignUpForm() {
       setLoading(false);
     }
   }
+
+  if (verified) return (
+    <div className="rounded-2xl border border-[#162440] bg-[#080F1E] p-8 text-center">
+      <CheckCircle size={40} className="text-green-400 mx-auto mb-4" />
+      <h1 className="text-xl font-bold text-white mb-2">Check your email</h1>
+      <p className="text-sm text-[#64748b] mb-6">We sent a verification link to <span className="text-white">{email}</span>. Click it to activate your account then sign in.</p>
+      <a href="/login" className="inline-flex items-center gap-2 h-10 px-6 rounded-lg bg-gradient-to-r from-[#7B6EF6] to-[#3B9EFF] text-sm font-semibold text-white hover:opacity-90 transition-opacity">
+        Go to sign in <ArrowRight size={14} />
+      </a>
+    </div>
+  );
 
   return (
     <div className="rounded-2xl border border-[#162440] bg-[#080F1E] p-8">

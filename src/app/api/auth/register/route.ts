@@ -28,8 +28,17 @@ export async function POST(request: NextRequest) {
 
     const regData = await regRes.json();
 
-    if (!regRes.ok || !regData.user) {
+    if (!regRes.ok) {
       return NextResponse.json({ error: regData.error ?? "Registration failed." }, { status: 400 });
+    }
+
+    // Space requires email verification before login
+    if (regData.status === "verify_email") {
+      return NextResponse.json({ ok: true, verify: true }, { status: 200 });
+    }
+
+    if (!regData.user) {
+      return NextResponse.json({ error: "Registration failed." }, { status: 400 });
     }
 
     const { id: userId, tenant_id: rawTenantId, role, plan } = regData.user;

@@ -9,7 +9,7 @@ import { apiUrl } from "@/lib/org";
 import {
   User, Building2, Shield, Bell, Key, Plug, CreditCard,
   Palette, Code, Users, Check, Zap, Mail, MessageSquare,
-  Calendar, Database, Webhook, Loader2,
+  Calendar, Database, Webhook, Loader2, Plus, X, Trash2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -72,6 +72,12 @@ export default function SettingsPage() {
 
   const [profileForm, setProfileForm] = useState({ name: "", email: "", jobTitle: "", phone: "", timezone: "America/New_York" });
   const [orgForm, setOrgForm] = useState({ name: "", website: "", industry: "", size: "" });
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ name: "", email: "", role: "member" });
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<string | null>(null);
+  const [editMemberId, setEditMemberId] = useState<string | null>(null);
+  const [editMemberRole, setEditMemberRole] = useState("");
 
   useEffect(() => {
     fetch(apiUrl("/api/users/me"))
@@ -132,6 +138,38 @@ export default function SettingsPage() {
     });
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviting(true); setInviteResult(null);
+    const res = await fetch(apiUrl("/api/team/invite"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(inviteForm),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setInviteResult("error:" + (json.error ?? "Failed to invite"));
+    } else {
+      setInviteResult("success:" + inviteForm.email);
+      setInviteForm({ name: "", email: "", role: "member" });
+      setOrgData(null);
+    }
+    setInviting(false);
+  }
+
+  async function handleRoleChange(memberId: string, role: string) {
+    await fetch(apiUrl(`/api/team/${memberId}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+    setEditMemberId(null);
+    setOrgData(null);
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    await fetch(apiUrl(`/api/team/${memberId}`), { method: "DELETE" });
+    setOrgData(null);
   }
 
   const planInfo = PLAN_LABELS[orgData?.plan ?? userData?.org?.plan ?? "starter"] ?? PLAN_LABELS.starter;
@@ -265,7 +303,10 @@ export default function SettingsPage() {
                     <h2 className="text-lg font-bold text-surface-50">Team Members</h2>
                     <p className="text-sm text-surface-500 mt-0.5">Manage access and permissions</p>
                   </div>
-                  <Button variant="gradient" size="sm" icon={Users}>Invite Member</Button>
+                  <Button variant="gradient" size="sm" icon={Plus}
+                    onClick={() => { setShowInvite(true); setInviteResult(null); }}>
+                    Invite Member
+                  </Button>
                 </div>
 
                 {loadingOrg ? (
@@ -287,9 +328,37 @@ export default function SettingsPage() {
                             <p className="text-xs text-surface-500">{member.jobTitle ?? member.email}</p>
                           </div>
                           <Badge variant={member.role === "owner" || member.role === "admin" ? "purple" : "ghost"} size="sm">
-                            {member.role === "owner" ? "Owner" : member.role === "admin" ? "Admin" : "Member"}
+                            {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                           </Badge>
-                          <Button variant="ghost" size="sm">Edit</Button>
+                          {member.role !== "owner" ? (
+                            editMemberId === member.id ? (
+                              <div className="flex items-center gap-2">
+                                <select value={editMemberRole} onChange={e => setEditMemberRole(e.target.value)}
+                                  className="h-7 rounded-md border border-surface-700 bg-surface-800 px-2 text-xs text-surface-100 focus:outline-none focus:border-brand-500">
+                                  {["admin","manager","member","viewer"].map(r => (
+                                    <option key={r} value={r}>{r.charAt(0).toUpperCase()+r.slice(1)}</option>
+                                  ))}
+                                </select>
+                                <button onClick={() => handleRoleChange(member.id, editMemberRole)}
+                                  className="text-[11px] text-brand-400 hover:text-brand-300 font-medium">Save</button>
+                                <button onClick={() => setEditMemberId(null)}
+                                  className="text-[11px] text-surface-500 hover:text-surface-300">Cancel</button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => { setEditMemberId(member.id); setEditMemberRole(member.role); }}
+                                  className="text-xs text-surface-400 hover:text-surface-200 px-2 py-1 rounded hover:bg-surface-800/60 transition-colors">
+                                  Edit
+                                </button>
+                                <button onClick={() => handleRemoveMember(member.id)}
+                                  className="p-1.5 rounded text-surface-600 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            )
+                          ) : (
+                            <span className="text-xs text-surface-600 px-2">—</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -483,6 +552,50 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Invite Member Modal */}
+      {showInvite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
+              <h3 className="text-sm font-bold text-surface-50">Invite Team Member</h3>
+              <button onClick={() => setShowInvite(false)} className="text-surface-500 hover:text-surface-300 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleInvite} className="p-5 space-y-4">
+              <Input label="Full Name" value={inviteForm.name} required
+                onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Jane Smith" />
+              <Input label="Email Address" type="email" value={inviteForm.email} required
+                onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="jane@company.com" />
+              <Select label="Role" value={inviteForm.role}
+                onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
+                options={[
+                  { value: "admin",   label: "Admin — full access" },
+                  { value: "manager", label: "Manager — team & deals" },
+                  { value: "member",  label: "Member — standard access" },
+                  { value: "viewer",  label: "Viewer — read only" },
+                ]} />
+
+              {inviteResult && (
+                <div className={cn("rounded-lg px-3 py-2 text-xs font-medium",
+                  inviteResult.startsWith("success:") ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
+                  {inviteResult.startsWith("success:") ? `Invite sent to ${inviteResult.slice(8)}` : inviteResult.slice(6)}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <Button type="submit" variant="gradient" loading={inviting} className="flex-1">
+                  Send Invite
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

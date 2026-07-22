@@ -28,8 +28,8 @@ import {
   RefreshCcw,
   ArrowUpDown,
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
-import { X, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 type Contact = {
   id: string; firstName: string; lastName: string; email: string; phone: string;
@@ -58,6 +58,12 @@ export default function ContactsPage() {
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ firstName:"", lastName:"", email:"", phone:"", status:"lead", jobTitle:"", source:"" });
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -111,6 +117,21 @@ export default function ContactsPage() {
     setAllContacts(prev => prev.filter(c => c.id !== id));
   };
 
+  const handleImportFile = async (file: File) => {
+    if (!file.name.endsWith(".csv")) { setImportError("Please upload a .csv file"); return; }
+    setImporting(true);
+    setImportError(null);
+    setImportResult(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(apiUrl("/api/contacts/import"), { method: "POST", body: fd });
+    const json = await res.json();
+    setImporting(false);
+    if (!res.ok) { setImportError(json.error ?? "Import failed"); return; }
+    setImportResult({ inserted: json.inserted, skipped: json.skipped });
+    load();
+  };
+
   const filtered = allContacts.filter((c) => {
     const matchesSearch =
       !search ||
@@ -150,7 +171,7 @@ export default function ContactsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" icon={Upload}>
+            <Button variant="outline" size="sm" icon={Upload} onClick={() => { setShowImport(true); setImportResult(null); setImportError(null); }}>
               Import
             </Button>
             <Button variant="outline" size="sm" icon={Download}>
@@ -582,6 +603,76 @@ export default function ContactsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Import Modal */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
+              <h2 className="text-sm font-bold text-surface-100">Import Contacts</h2>
+              <button onClick={() => setShowImport(false)} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Drop zone */}
+              {!importResult && (
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleImportFile(f); }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-10 cursor-pointer transition-all ${dragOver ? "border-brand-500 bg-brand-500/5" : "border-surface-700 hover:border-surface-600 hover:bg-surface-800/30"}`}>
+                  <input ref={fileInputRef} type="file" accept=".csv" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ""; }} />
+                  {importing ? (
+                    <><Loader2 size={24} className="animate-spin text-brand-400" /><p className="text-sm text-surface-400">Processing…</p></>
+                  ) : (
+                    <><Upload size={24} className="text-surface-600" />
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-surface-300">Drop your CSV here</p>
+                      <p className="text-xs text-surface-500 mt-1">or click to browse</p>
+                    </div></>
+                  )}
+                </div>
+              )}
+
+              {/* Result */}
+              {importResult && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 flex items-start gap-3">
+                  <CheckCircle2 size={18} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-300">Import complete</p>
+                    <p className="text-xs text-surface-400 mt-1">{importResult.inserted} contacts imported{importResult.skipped > 0 ? ` · ${importResult.skipped} rows skipped (missing name)` : ""}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error */}
+              {importError && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 flex items-start gap-3">
+                  <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-300">{importError}</p>
+                </div>
+              )}
+
+              {/* Format hint */}
+              <div className="rounded-lg bg-surface-800/60 p-3">
+                <p className="text-[11px] font-semibold text-surface-400 mb-1.5">Expected columns (any order):</p>
+                <p className="text-[11px] text-surface-500 font-mono leading-relaxed">First Name*, Last Name, Email, Phone, Status, Job Title, Company, Source</p>
+                <p className="text-[11px] text-surface-600 mt-1.5">* Required. Status values: lead, prospect, customer, vip, churned</p>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                {importResult ? (
+                  <button onClick={() => setShowImport(false)}
+                    className="h-9 px-4 rounded-lg bg-gradient-to-r from-brand-500 to-blue-500 text-sm font-semibold text-white hover:opacity-90">Done</button>
+                ) : (
+                  <button onClick={() => setShowImport(false)}
+                    className="h-9 px-4 rounded-lg border border-surface-700 text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

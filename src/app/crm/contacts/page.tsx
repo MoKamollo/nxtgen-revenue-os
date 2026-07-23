@@ -11,7 +11,7 @@ import {
   Search, Plus, Filter, Download, Upload, MoreHorizontal,
   Mail, Phone, Star, ChevronDown, SlidersHorizontal,
   Grid3X3, List, Users, Tag, Building2, TrendingUp,
-  RefreshCcw, ArrowUpDown, HeartPulse,
+  ArrowUpDown, Pencil, BarChart2,
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
@@ -427,30 +427,51 @@ export default function ContactsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all">
-                            <Mail size={12} />
-                          </button>
-                          <button className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
-                            <Phone size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleSendNps(contact.id, contact.email)}
-                            disabled={npsSending === contact.id}
-                            title={contact.email ? "Send NPS Survey" : "No email — cannot send NPS"}
-                            className={cn("flex h-6 w-6 items-center justify-center rounded-md transition-all",
-                              npsSuccess === contact.id ? "text-emerald-400 bg-emerald-500/10" :
-                              !contact.email ? "text-surface-700 cursor-not-allowed" :
-                              "text-surface-500 hover:text-pink-400 hover:bg-pink-500/10")}>
-                            {npsSending === contact.id ? <Loader2 size={12} className="animate-spin" /> :
-                             npsSuccess === contact.id ? <CheckCircle2 size={12} /> :
-                             <HeartPulse size={12} />}
-                          </button>
-                          <button onClick={() => openEdit(contact)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all">
-                            <RefreshCcw size={12} />
-                          </button>
-                          <button onClick={() => handleDelete(contact.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
-                            <X size={12} />
-                          </button>
+                          {/* Email */}
+                          <div className="relative group/tip">
+                            <button className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-blue-400 hover:bg-blue-500/10 transition-all">
+                              <Mail size={12} />
+                            </button>
+                            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tip:block whitespace-nowrap rounded-md bg-surface-700 px-2 py-1 text-[10px] text-surface-100 shadow-lg z-50">Send Email</span>
+                          </div>
+                          {/* Call */}
+                          <div className="relative group/tip">
+                            <button className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
+                              <Phone size={12} />
+                            </button>
+                            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tip:block whitespace-nowrap rounded-md bg-surface-700 px-2 py-1 text-[10px] text-surface-100 shadow-lg z-50">Call</span>
+                          </div>
+                          {/* NPS Survey */}
+                          <div className="relative group/tip">
+                            <button
+                              onClick={() => handleSendNps(contact.id, contact.email)}
+                              disabled={npsSending === contact.id}
+                              className={cn("flex h-6 w-6 items-center justify-center rounded-md transition-all",
+                                npsSuccess === contact.id ? "text-emerald-400 bg-emerald-500/10" :
+                                !contact.email ? "text-surface-700 cursor-not-allowed" :
+                                "text-surface-500 hover:text-violet-400 hover:bg-violet-500/10")}>
+                              {npsSending === contact.id ? <Loader2 size={12} className="animate-spin" /> :
+                               npsSuccess === contact.id ? <CheckCircle2 size={12} /> :
+                               <BarChart2 size={12} />}
+                            </button>
+                            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tip:block whitespace-nowrap rounded-md bg-surface-700 px-2 py-1 text-[10px] text-surface-100 shadow-lg z-50">
+                              {!contact.email ? "No email — NPS unavailable" : "Send NPS Survey"}
+                            </span>
+                          </div>
+                          {/* Edit */}
+                          <div className="relative group/tip">
+                            <button onClick={() => openEdit(contact)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all">
+                              <Pencil size={12} />
+                            </button>
+                            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tip:block whitespace-nowrap rounded-md bg-surface-700 px-2 py-1 text-[10px] text-surface-100 shadow-lg z-50">Edit Contact</span>
+                          </div>
+                          {/* Delete */}
+                          <div className="relative group/tip">
+                            <button onClick={() => handleDelete(contact.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                              <X size={12} />
+                            </button>
+                            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tip:block whitespace-nowrap rounded-md bg-surface-700 px-2 py-1 text-[10px] text-surface-100 shadow-lg z-50">Delete</span>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -541,13 +562,13 @@ export default function ContactsPage() {
                     <button
                       onClick={() => handleSendNps(contact.id, contact.email)}
                       disabled={npsSending === contact.id || !contact.email}
-                      title={contact.email ? "Send NPS Survey" : "No email"}
+                      title={contact.email ? "Send NPS Survey" : "No email — NPS unavailable"}
                       className={cn("flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
                         npsSuccess === contact.id ? "bg-emerald-500/20 text-emerald-400" :
-                        "bg-surface-800 hover:bg-pink-500/10 text-surface-400 hover:text-pink-400")}>
+                        "bg-surface-800 hover:bg-violet-500/10 text-surface-400 hover:text-violet-400")}>
                       {npsSending === contact.id ? <Loader2 size={11} className="animate-spin" /> :
                        npsSuccess === contact.id ? <CheckCircle2 size={11} /> :
-                       <HeartPulse size={11} />}
+                       <BarChart2 size={11} />}
                     </button>
                   </div>
                 </div>

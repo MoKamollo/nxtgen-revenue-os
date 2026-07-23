@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { contacts, deals, tickets, workflows, campaigns } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import Anthropic from "@anthropic-ai/sdk";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { eq } from "drizzle-orm";
+import Groq from "groq-sdk";
 
 export async function POST(request: NextRequest) {
   const orgId = request.headers.get("x-tenant-id");
   if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "AI assistant not configured — add ANTHROPIC_API_KEY to environment variables" }, { status: 503 });
+  if (!process.env.GROQ_API_KEY) {
+    return NextResponse.json({ error: "AI assistant not configured — add GROQ_API_KEY to environment variables" }, { status: 503 });
   }
 
   const body = await request.json();
@@ -20,7 +18,7 @@ export async function POST(request: NextRequest) {
 
   if (!userMessage.trim()) return NextResponse.json({ error: "Message required" }, { status: 400 });
 
-  // Fetch live CRM snapshot to give Claude real context
+  // Fetch live CRM snapshot
   const [contactRows, dealRows, ticketRows, workflowRows, campaignRows] = await Promise.all([
     db.select({ id: contacts.id, status: contacts.status, score: contacts.score }).from(contacts).where(eq(contacts.organizationId, orgId)),
     db.select({ id: deals.id, name: deals.name, value: deals.value, stage: deals.stage }).from(deals).where(eq(deals.organizationId, orgId)),
@@ -29,28 +27,28 @@ export async function POST(request: NextRequest) {
     db.select({ id: campaigns.id, name: campaigns.name, status: campaigns.status, stats: campaigns.stats }).from(campaigns).where(eq(campaigns.organizationId, orgId)),
   ]);
 
-  const totalContacts  = contactRows.length;
-  const leads          = contactRows.filter(c => c.status === "lead").length;
-  const customers      = contactRows.filter(c => c.status === "customer" || c.status === "vip").length;
-  const churned        = contactRows.filter(c => c.status === "churned").length;
-  const hotLeads       = contactRows.filter(c => (c.score ?? 0) >= 70 && c.status === "lead").length;
+  const totalContacts   = contactRows.length;
+  const leads           = contactRows.filter(c => c.status === "lead").length;
+  const customers       = contactRows.filter(c => c.status === "customer" || c.status === "vip").length;
+  const churned         = contactRows.filter(c => c.status === "churned").length;
+  const hotLeads        = contactRows.filter(c => (c.score ?? 0) >= 70 && c.status === "lead").length;
 
-  const activeDeals    = dealRows.filter(d => !["closed_won","closed_lost"].includes(d.stage ?? ""));
-  const pipelineValue  = activeDeals.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
-  const wonDeals       = dealRows.filter(d => d.stage === "closed_won");
-  const closedDeals    = dealRows.filter(d => ["closed_won","closed_lost"].includes(d.stage ?? ""));
-  const winRate        = closedDeals.length > 0 ? Math.round((wonDeals.length / closedDeals.length) * 100) : 0;
+  const activeDeals     = dealRows.filter(d => !["closed_won", "closed_lost"].includes(d.stage ?? ""));
+  const pipelineValue   = activeDeals.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
+  const wonDeals        = dealRows.filter(d => d.stage === "closed_won");
+  const closedDeals     = dealRows.filter(d => ["closed_won", "closed_lost"].includes(d.stage ?? ""));
+  const winRate         = closedDeals.length > 0 ? Math.round((wonDeals.length / closedDeals.length) * 100) : 0;
 
-  const openTickets    = ticketRows.filter(t => !["resolved","closed"].includes(t.status ?? "")).length;
-  const criticalTickets = ticketRows.filter(t => t.priority === "critical" && !["resolved","closed"].includes(t.status ?? "")).length;
+  const openTickets     = ticketRows.filter(t => !["resolved", "closed"].includes(t.status ?? "")).length;
+  const criticalTickets = ticketRows.filter(t => t.priority === "critical" && !["resolved", "closed"].includes(t.status ?? "")).length;
 
   const activeWorkflows = workflowRows.filter(w => w.status === "active").length;
   const totalEnrolled   = workflowRows.reduce((s, w) => s + (w.enrolledCount ?? 0), 0);
 
-  const sentCampaigns  = campaignRows.filter(c => c.status === "sent");
-  const totalSent      = sentCampaigns.reduce((s, c) => s + ((c.stats as Record<string,number>)?.sent ?? 0), 0);
-  const totalOpened    = sentCampaigns.reduce((s, c) => s + ((c.stats as Record<string,number>)?.opened ?? 0), 0);
-  const avgOpenRate    = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
+  const sentCampaigns   = campaignRows.filter(c => c.status === "sent");
+  const totalSent       = sentCampaigns.reduce((s, c) => s + ((c.stats as Record<string, number>)?.sent ?? 0), 0);
+  const totalOpened     = sentCampaigns.reduce((s, c) => s + ((c.stats as Record<string, number>)?.opened ?? 0), 0);
+  const avgOpenRate     = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
 
   const systemPrompt = `You are the NxtGen Convert AI Revenue Assistant — a sharp, direct revenue intelligence advisor embedded inside a B2B SaaS CRM dashboard. You have real-time access to this organisation's live data.
 
@@ -70,19 +68,19 @@ RULES:
 - Never make up data outside what's in the snapshot above`;
 
   try {
-    const messages = [
-      ...history,
-      { role: "user" as const, content: userMessage },
-    ];
+    const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const response = await client.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       max_tokens: 1024,
-      system: systemPrompt,
-      messages,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...history,
+        { role: "user", content: userMessage },
+      ],
     });
 
-    const reply = response.content[0].type === "text" ? response.content[0].text : "";
+    const reply = response.choices[0]?.message?.content ?? "";
     return NextResponse.json({ reply });
   } catch (err) {
     console.error(err);

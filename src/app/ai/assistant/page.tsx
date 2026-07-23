@@ -108,7 +108,7 @@ export default function AIAssistantPage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-surface-50">AI Revenue Assistant</h1>
-              <p className="text-xs text-surface-500">Powered by Claude · reads your live CRM data</p>
+              <p className="text-xs text-surface-500">Powered by Groq · reads your live CRM data</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

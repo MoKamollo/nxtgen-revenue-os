@@ -43,6 +43,8 @@ export default function ContactsPage() {
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ firstName:"", lastName:"", email:"", phone:"", status:"lead", jobTitle:"", source:"" });
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
@@ -147,6 +149,17 @@ export default function ContactsPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const getPageNumbers = () => {
+    if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    if (currentPage <= 3) return [1, 2, 3, 4, "...", totalPages];
+    if (currentPage >= totalPages - 2) return [1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
+  };
+
   const toggleSelect = (id: string) => {
     setSelected((s) =>
       s.includes(id) ? s.filter((x) => x !== id) : [...s, id]
@@ -223,7 +236,7 @@ export default function ContactsPage() {
               type="text"
               placeholder="Search contacts..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="w-full h-8 rounded-lg border border-surface-700 bg-surface-900 pl-9 pr-3 text-xs text-surface-200 placeholder:text-surface-600 focus:outline-none focus:border-brand-500"
             />
           </div>
@@ -327,7 +340,7 @@ export default function ContactsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-800/60">
-                  {filtered.map((contact) => (
+                  {paginated.map((contact) => (
                     <tr
                       key={contact.id}
                       onClick={() => openEdit(contact)}
@@ -504,23 +517,30 @@ export default function ContactsPage() {
             )}
             <div className="flex items-center justify-between border-t border-surface-800 px-4 py-3">
               <span className="text-xs text-surface-500">
-                {loading ? "Loading..." : `Showing ${filtered.length} of ${allContacts.length} contacts`}
+                {loading ? "Loading…" : filtered.length === 0 ? "No contacts" : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)} of ${filtered.length} contact${filtered.length !== 1 ? "s" : ""}`}
               </span>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, "...", 8].map((page, i) => (
-                  <button
-                    key={i}
-                    className={cn(
-                      "flex h-6 w-6 items-center justify-center rounded-md text-xs transition-all",
-                      page === 1
-                        ? "bg-brand-500 text-white"
-                        : "text-surface-500 hover:text-surface-300 hover:bg-surface-800"
-                    )}
-                  >
-                    {page}
-                  </button>
-                ))}
-              </div>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  {getPageNumbers().map((p, i) =>
+                    p === "..." ? (
+                      <span key={i} className="flex h-6 w-6 items-center justify-center text-xs text-surface-600">…</span>
+                    ) : (
+                      <button
+                        key={i}
+                        onClick={() => setPage(Number(p))}
+                        className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-md text-xs transition-all",
+                          p === currentPage
+                            ? "bg-brand-500 text-white"
+                            : "text-surface-500 hover:text-surface-300 hover:bg-surface-800"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
             </div>
           </Card>
         )}

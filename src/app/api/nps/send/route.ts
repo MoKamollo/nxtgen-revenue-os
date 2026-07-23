@@ -38,13 +38,59 @@ export async function POST(request: NextRequest) {
         from: process.env.EMAIL_FROM ?? "NxtGen Convert <noreply@nxtgen-stack.com>",
         to: contact.email,
         subject: "Quick question — how likely are you to recommend us?",
-        html: `<!DOCTYPE html><html><body style="margin:0;background:#0a0f1e">
-<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:40px 24px;color:#e2e8f0">
-  <h2 style="color:#fff;margin-bottom:8px">Hi ${contact.firstName},</h2>
-  <p style="color:#94a3b8;line-height:1.7">We'd love to know how we're doing. On a scale of 0–10, how likely are you to recommend us to a friend or colleague?</p>
-  <a href="${surveyUrl}" style="display:inline-block;margin-top:24px;padding:14px 28px;background:#6366f1;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Share My Feedback →</a>
-  <p style="color:#475569;font-size:12px;margin-top:32px">This takes less than 30 seconds.</p>
-</div></body></html>`,
+        html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quick question from NxtGen Convert</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;padding:40px 16px">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+
+      <!-- Header -->
+      <tr>
+        <td style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:32px 40px;text-align:center">
+          <img src="${process.env.NEXT_PUBLIC_APP_URL ?? "https://convert.nxtgen-stack.com"}/nxtgen-logo.png" width="140" alt="NxtGen" style="display:block;margin:0 auto;height:auto">
+        </td>
+      </tr>
+
+      <!-- Body -->
+      <tr>
+        <td style="padding:40px 40px 32px">
+          <h1 style="color:#0f172a;font-size:22px;font-weight:700;margin:0 0 12px;line-height:1.3">Hi ${contact.firstName},</h1>
+          <p style="color:#475569;font-size:15px;line-height:1.8;margin:0 0 8px">We'd love to hear how we're doing.</p>
+          <p style="color:#475569;font-size:15px;line-height:1.8;margin:0 0 32px">On a scale of <strong>0 to 10</strong>, how likely are you to recommend <strong style="color:#0f172a">NxtGen Convert</strong> to a friend or colleague?</p>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center" style="padding-bottom:32px">
+                <a href="${surveyUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;border-radius:10px;letter-spacing:0.2px">Share My Feedback &rarr;</a>
+              </td>
+            </tr>
+          </table>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #e2e8f0;padding-top:24px">
+            <tr>
+              <td style="text-align:center">
+                <p style="color:#94a3b8;font-size:12px;margin:0">Takes less than 30 seconds &nbsp;&middot;&nbsp; No login required</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center">
+          <p style="color:#94a3b8;font-size:11px;margin:0">&copy; ${new Date().getFullYear()} NxtGen Stack &mdash; All rights reserved</p>
+          <p style="color:#cbd5e1;font-size:11px;margin:6px 0 0">You received this because your feedback matters to us.</p>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`,
       });
     } catch { /* email failure doesn't block token creation */ }
   }

@@ -2,15 +2,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 
-const LABELS: Record<number, string> = {
-  0: "Extremely unlikely", 1: "Very unlikely", 2: "Unlikely", 3: "Somewhat unlikely",
-  4: "Neutral–", 5: "Neutral", 6: "Somewhat likely",
-  7: "Likely", 8: "Very likely", 9: "Extremely likely", 10: "Definitely!",
-};
-
-const scoreColor = (n: number) =>
-  n <= 6 ? "bg-red-500 border-red-400" : n <= 8 ? "bg-amber-500 border-amber-400" : "bg-emerald-500 border-emerald-400";
-
 export default function NpsSurveyPage() {
   const { token } = useParams<{ token: string }>();
   const [status, setStatus]     = useState<"loading" | "ready" | "invalid" | "done">("loading");
@@ -47,108 +38,142 @@ export default function NpsSurveyPage() {
     setSubmitting(false);
   }
 
-  return (
-    <div style={{ minHeight: "100vh", background: "#0a0f1e", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <div style={{ width: "100%", maxWidth: 560, background: "#111827", border: "1px solid #1f2937", borderRadius: 16, padding: "40px 36px" }}>
+  const scoreColor = (n: number, selected: boolean) => {
+    if (!selected) return { background: "#1e293b", color: "#64748b", border: "1px solid #334155" };
+    if (n <= 6)  return { background: "#ef4444", color: "#fff", border: "1px solid #ef4444" };
+    if (n <= 8)  return { background: "#f59e0b", color: "#fff", border: "1px solid #f59e0b" };
+    return { background: "#10b981", color: "#fff", border: "1px solid #10b981" };
+  };
 
-        {/* Logo / Brand */}
-        <div style={{ marginBottom: 32, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>N</span>
-          </div>
-          <span style={{ color: "#e2e8f0", fontWeight: 600, fontSize: 15 }}>NxtGen Convert</span>
+  const feedbackLabel = score === null
+    ? "Any additional comments? (optional)"
+    : score >= 9
+      ? "What do you love most about NxtGen Convert?"
+      : score <= 6
+        ? "What could we do better?"
+        : "What would make us a 10 for you?";
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#0b0f1a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}>
+
+      {/* Card */}
+      <div style={{ width: "100%", maxWidth: 580, background: "#111827", border: "1px solid #1f2937", borderRadius: 20, overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}>
+
+        {/* Header bar */}
+        <div style={{ background: "linear-gradient(135deg,#1e1b4b,#312e81)", padding: "24px 36px", display: "flex", alignItems: "center", gap: 12 }}>
+          <img src="/nxtgen-logo.png" alt="NxtGen" style={{ height: 32, width: "auto", display: "block" }} />
         </div>
 
-        {status === "loading" && (
-          <p style={{ color: "#64748b", textAlign: "center" }}>Loading…</p>
-        )}
+        {/* Content */}
+        <div style={{ padding: "36px 36px 40px" }}>
 
-        {status === "invalid" && (
-          <div style={{ textAlign: "center" }}>
-            <p style={{ color: "#f87171", fontSize: 18, fontWeight: 600 }}>Invalid or expired link</p>
-            <p style={{ color: "#64748b", marginTop: 8 }}>This survey link is not valid or has already expired.</p>
-          </div>
-        )}
+          {status === "loading" && (
+            <p style={{ color: "#64748b", textAlign: "center", fontSize: 15, margin: 0 }}>Loading…</p>
+          )}
 
-        {status === "done" && (
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
-            <p style={{ color: "#e2e8f0", fontSize: 20, fontWeight: 700 }}>Thank you for your feedback!</p>
-            <p style={{ color: "#64748b", marginTop: 8 }}>Your response helps us improve for everyone.</p>
-          </div>
-        )}
-
-        {status === "ready" && (
-          <>
-            <h1 style={{ color: "#f1f5f9", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
-              How likely are you to recommend us?
-            </h1>
-            <p style={{ color: "#64748b", fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
-              On a scale of 0 to 10 — 0 being not at all likely, 10 being extremely likely.
-            </p>
-
-            {/* Score buttons */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-              {Array.from({ length: 11 }, (_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setScore(i)}
-                  style={{
-                    width: 44, height: 44, borderRadius: 8, border: score === i ? "2px solid transparent" : "1px solid #374151",
-                    background: score === i ? (i <= 6 ? "#ef4444" : i <= 8 ? "#f59e0b" : "#10b981") : "#1f2937",
-                    color: score === i ? "#fff" : "#9ca3af",
-                    fontWeight: score === i ? 700 : 400,
-                    fontSize: 15, cursor: "pointer", transition: "all 0.15s",
-                  }}
-                >
-                  {i}
-                </button>
-              ))}
+          {status === "invalid" && (
+            <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#1f2937", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              </div>
+              <p style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>Invalid or expired link</p>
+              <p style={{ color: "#64748b", fontSize: 14, margin: 0 }}>This survey link is no longer valid.</p>
             </div>
+          )}
 
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 28 }}>
-              <span style={{ color: "#64748b", fontSize: 11 }}>Not at all likely</span>
-              <span style={{ color: "#64748b", fontSize: 11 }}>Extremely likely</span>
+          {status === "done" && (
+            <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,#4f46e5,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <p style={{ color: "#f1f5f9", fontSize: 22, fontWeight: 700, margin: "0 0 10px" }}>Thank you for your feedback!</p>
+              <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.7, margin: 0 }}>Your response has been recorded.<br/>We appreciate you taking the time to help us improve.</p>
             </div>
+          )}
 
-            {score !== null && (
-              <p style={{ color: score <= 6 ? "#f87171" : score <= 8 ? "#fbbf24" : "#34d399", fontSize: 13, marginBottom: 20, fontWeight: 500 }}>
-                {LABELS[score]}
+          {status === "ready" && (
+            <>
+              <h1 style={{ color: "#f1f5f9", fontSize: 20, fontWeight: 700, margin: "0 0 8px", lineHeight: 1.4 }}>
+                How likely are you to recommend us?
+              </h1>
+              <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 32px", lineHeight: 1.6 }}>
+                On a scale of 0 to 10 — 0 being not at all likely, 10 being extremely likely.
               </p>
-            )}
 
-            {/* Feedback */}
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ color: "#94a3b8", fontSize: 13, display: "block", marginBottom: 8 }}>
-                {score !== null && score >= 9 ? "What do you love most?" : score !== null && score <= 6 ? "What could we improve?" : "Any additional comments? (optional)"}
-              </label>
-              <textarea
-                value={feedback}
-                onChange={e => setFeedback(e.target.value)}
-                rows={3}
-                placeholder="Your thoughts…"
-                style={{ width: "100%", background: "#0f172a", border: "1px solid #374151", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box" }}
-              />
-            </div>
+              {/* Score row — all 11 in one line */}
+              <div style={{ overflowX: "auto", marginBottom: 8 }}>
+                <div style={{ display: "flex", gap: 5, minWidth: "max-content" }}>
+                  {Array.from({ length: 11 }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setScore(i)}
+                      style={{
+                        width: 42, height: 42, borderRadius: 8, flexShrink: 0,
+                        fontWeight: score === i ? 700 : 500,
+                        fontSize: 14, cursor: "pointer", transition: "all 0.15s",
+                        ...scoreColor(i, score === i),
+                      }}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            {error && <p style={{ color: "#f87171", fontSize: 13, marginBottom: 16 }}>{error}</p>}
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 28 }}>
+                <span style={{ color: "#475569", fontSize: 11 }}>Not likely</span>
+                <span style={{ color: "#475569", fontSize: 11 }}>Extremely likely</span>
+              </div>
 
-            <button
-              onClick={handleSubmit}
-              disabled={score === null || submitting}
-              style={{
-                width: "100%", padding: "14px", borderRadius: 10, border: "none",
-                background: score === null ? "#374151" : "linear-gradient(135deg,#6366f1,#8b5cf6)",
-                color: "#fff", fontWeight: 600, fontSize: 15,
-                cursor: score === null ? "not-allowed" : "pointer", transition: "opacity 0.15s",
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
-              {submitting ? "Submitting…" : "Submit Feedback"}
-            </button>
-          </>
-        )}
+              {score !== null && (
+                <div style={{ marginBottom: 24, padding: "10px 16px", borderRadius: 8, background: score <= 6 ? "rgba(239,68,68,0.08)" : score <= 8 ? "rgba(245,158,11,0.08)" : "rgba(16,185,129,0.08)", border: `1px solid ${score <= 6 ? "rgba(239,68,68,0.2)" : score <= 8 ? "rgba(245,158,11,0.2)" : "rgba(16,185,129,0.2)"}` }}>
+                  <p style={{ color: score <= 6 ? "#f87171" : score <= 8 ? "#fbbf24" : "#34d399", fontSize: 13, fontWeight: 600, margin: 0 }}>
+                    {score <= 6 ? "Detractor" : score <= 8 ? "Passive" : "Promoter"} &nbsp;·&nbsp; Score: {score}/10
+                  </p>
+                </div>
+              )}
+
+              {/* Feedback */}
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ color: "#94a3b8", fontSize: 13, display: "block", marginBottom: 8, fontWeight: 500 }}>
+                  {feedbackLabel}
+                </label>
+                <textarea
+                  value={feedback}
+                  onChange={e => setFeedback(e.target.value)}
+                  rows={3}
+                  placeholder="Your thoughts…"
+                  style={{ width: "100%", background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                />
+              </div>
+
+              {error && <p style={{ color: "#f87171", fontSize: 13, marginBottom: 16 }}>{error}</p>}
+
+              <button
+                onClick={handleSubmit}
+                disabled={score === null || submitting}
+                style={{
+                  width: "100%", padding: "14px", borderRadius: 10, border: "none",
+                  background: score === null ? "#1e293b" : "linear-gradient(135deg,#4f46e5,#7c3aed)",
+                  color: score === null ? "#475569" : "#fff",
+                  fontWeight: 700, fontSize: 15,
+                  cursor: score === null ? "not-allowed" : "pointer",
+                  transition: "opacity 0.15s", opacity: submitting ? 0.7 : 1,
+                  fontFamily: "inherit",
+                }}
+              >
+                {submitting ? "Submitting…" : "Submit Feedback"}
+              </button>
+
+              <p style={{ color: "#334155", fontSize: 11, textAlign: "center", margin: "16px 0 0" }}>
+                Your response is anonymous and helps us improve.
+              </p>
+            </>
+          )}
+        </div>
       </div>
+
+      <p style={{ color: "#1e293b", fontSize: 11, marginTop: 24 }}>Powered by NxtGen Stack</p>
     </div>
   );
 }

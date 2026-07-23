@@ -65,6 +65,38 @@ export default function TicketsPage() {
     return matchSearch && matchTab;
   });
 
+  const STATUS_CYCLE: Record<string, string> = {
+    open: "in_progress",
+    in_progress: "resolved",
+    waiting: "resolved",
+    resolved: "closed",
+    closed: "open",
+  };
+
+  const STATUS_LABELS: Record<string, string> = {
+    open: "Start",
+    in_progress: "Resolve",
+    waiting: "Resolve",
+    resolved: "Close",
+    closed: "Reopen",
+  };
+
+  async function cycleStatus(ticket: Ticket) {
+    const nextStatus = STATUS_CYCLE[ticket.status] ?? "open";
+    setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: nextStatus as Ticket["status"] } : t));
+    await fetch(apiUrl(`/api/tickets/${ticket.id}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this ticket?")) return;
+    setTickets(prev => prev.filter(t => t.id !== id));
+    await fetch(apiUrl(`/api/tickets/${id}`), { method: "DELETE" });
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!form.subject.trim()) return;
@@ -80,11 +112,6 @@ export default function TicketsPage() {
     setForm({ subject: "", description: "", priority: "medium" });
     setShowModal(false);
     setSaving(false);
-  }
-
-  async function handleDelete(id: string) {
-    setTickets(prev => prev.filter(t => t.id !== id));
-    await fetch(apiUrl(`/api/tickets/${id}`), { method: "DELETE" });
   }
 
   return (
@@ -208,11 +235,16 @@ export default function TicketsPage() {
                     </div>
                     <span className="text-xs text-surface-600 shrink-0 w-16 text-right">{timeAgo(ticket.createdAt)}</span>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={e => { e.stopPropagation(); cycleStatus(ticket); }}
+                        className="flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-medium bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-all"
+                      >
+                        {STATUS_LABELS[ticket.status] ?? "Update"}
+                      </button>
                       <button onClick={e => { e.stopPropagation(); handleDelete(ticket.id); }}
                         className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
                         <Trash2 size={12} />
                       </button>
-                      <ChevronRight size={13} className="text-surface-600" />
                     </div>
                   </div>
                 );

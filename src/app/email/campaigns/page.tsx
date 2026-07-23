@@ -44,6 +44,7 @@ const campaignTypeIcons = {
 
 export default function CampaignsPage() {
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("All");
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -100,9 +101,19 @@ export default function CampaignsPage() {
     setActiveMenu(null);
   };
 
-  const filtered = allCampaigns.filter((c) =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const TAB_STATUS_MAP: Record<string, string[]> = {
+    All: [],
+    Active: ["sending", "scheduled"],
+    Draft: ["draft"],
+    Sent: ["sent"],
+  };
+
+  const filtered = allCampaigns.filter((c) => {
+    if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+    const allowed = TAB_STATUS_MAP[activeTab] ?? [];
+    if (allowed.length > 0 && !allowed.includes(c.status)) return false;
+    return true;
+  });
 
   const getOpenRate = (c: Campaign) => {
     if (!c.stats.delivered) return 0;
@@ -188,7 +199,16 @@ export default function CampaignsPage() {
           </div>
           <div className="flex items-center rounded-lg border border-surface-700 bg-surface-900 p-0.5">
             {["All", "Active", "Draft", "Sent"].map((t) => (
-              <button key={t} className="px-2.5 py-1 rounded-md text-xs text-surface-500 hover:text-surface-200 transition-all">
+              <button
+                key={t}
+                onClick={() => setActiveTab(t)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs transition-all",
+                  activeTab === t
+                    ? "bg-surface-700 text-surface-100 font-medium"
+                    : "text-surface-500 hover:text-surface-200"
+                )}
+              >
                 {t}
               </button>
             ))}

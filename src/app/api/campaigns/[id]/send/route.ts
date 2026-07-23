@@ -3,6 +3,53 @@ import { db } from "@/db";
 import { campaigns, contacts } from "@/db/schema";
 import { and, eq, isNotNull } from "drizzle-orm";
 
+type AudienceFilters = {
+  status?: string | string[];
+  source?: string | string[];
+  tags?: string[];
+  minScore?: number;
+};
+
+function matchesFilters(contact: { status: string | null; source: string | null; tags: unknown; score: number | null }, filters: AudienceFilters): boolean {
+  if (filters.status) {
+    const allowed = Array.isArray(filters.status) ? filters.status : [filters.status];
+    if (!allowed.includes(contact.status ?? "")) return false;
+  }
+  if (filters.source) {
+    const allowed = Array.isArray(filters.source) ? filters.source : [filters.source];
+    if (!allowed.includes(contact.source ?? "")) return false;
+  }
+  if (filters.tags && filters.tags.length > 0) {
+    const contactTags = Array.isArray(contact.tags) ? contact.tags as string[] : [];
+    if (!filters.tags.some((t) => contactTags.includes(t))) return false;
+  }
+  if (filters.minScore !== undefined && (contact.score ?? 0) < filters.minScore) return false;
+  return true;
+}
+
+function buildEmailHtml(campaign: { name: string; subject: string | null; content: unknown }, firstName: string, lastName: string | null): string {
+  const fullName = `${firstName}${lastName ? " " + lastName : ""}`;
+  // Use campaign content if it's a stored HTML string (H10b)
+  const rawContent = typeof campaign.content === "string" ? campaign.content : null;
+  if (rawContent?.trim()) {
+    return rawContent
+      .replace(/\{\{name\}\}/gi, fullName)
+      .replace(/\{\{first_name\}\}/gi, firstName)
+      .replace(/\{\{last_name\}\}/gi, lastName ?? "");
+  }
+  // Generic fallback
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0f1e">
+<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:40px 24px;background:#0a0f1e;color:#e2e8f0">
+  <h2 style="font-size:22px;font-weight:700;color:#f8fafc;margin-bottom:16px">${campaign.subject ?? campaign.name}</h2>
+  <p style="font-size:15px;color:#94a3b8;margin-bottom:20px">Hi ${fullName},</p>
+  <p style="font-size:14px;color:#cbd5e1;line-height:1.7">This message was sent to you as part of the <strong style="color:#f8fafc">${campaign.name}</strong> campaign.</p>
+  <hr style="border:none;border-top:1px solid #1e293b;margin:32px 0"/>
+  <p style="font-size:12px;color:#475569">You're receiving this email because you're in our system.
+    <a href="#" style="color:#6366f1;text-decoration:none">Unsubscribe</a>
+  </p>
+</div></body></html>`;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,13 +69,30 @@ export async function POST(
       return NextResponse.json({ error: "Campaign is not in a sendable state" }, { status: 400 });
     }
 
-    const recipients = await db
-      .select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email })
+    // Fetch all contacts with email for this org
+    const allContacts = await db
+      .select({
+        id: contacts.id,
+        firstName: contacts.firstName,
+        lastName: contacts.lastName,
+        email: contacts.email,
+        status: contacts.status,
+        source: contacts.source,
+        tags: contacts.tags,
+        score: contacts.score,
+      })
       .from(contacts)
       .where(and(eq(contacts.organizationId, orgId), isNotNull(contacts.email)));
 
+    // Apply audienceFilters (H10a)
+    const filters = (campaign.audienceFilters ?? {}) as AudienceFilters;
+    const hasFilters = Object.keys(filters).length > 0;
+    const recipients = hasFilters
+      ? allContacts.filter((c) => matchesFilters(c, filters))
+      : allContacts;
+
     if (recipients.length === 0) {
-      return NextResponse.json({ error: "No contacts with email addresses found" }, { status: 400 });
+      return NextResponse.json({ error: "No contacts matched the campaign audience filters" }, { status: 400 });
     }
 
     await db.update(campaigns).set({
@@ -53,7 +117,7 @@ export async function POST(
             from,
             to: r.email,
             subject: campaign.subject ?? campaign.name,
-            html: buildHtml(campaign.name, campaign.subject, r.firstName, r.lastName),
+            html: buildEmailHtml(campaign, r.firstName, r.lastName),
           });
           sent++;
         } catch { bounced++; }
@@ -72,18 +136,4 @@ export async function POST(
     console.error(err);
     return NextResponse.json({ error: "Failed to send campaign" }, { status: 500 });
   }
-}
-
-function buildHtml(name: string, subject: string | null, firstName: string, lastName: string | null) {
-  const fullName = `${firstName}${lastName ? " " + lastName : ""}`;
-  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0f1e">
-<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:40px 24px;background:#0a0f1e;color:#e2e8f0">
-  <h2 style="font-size:22px;font-weight:700;color:#f8fafc;margin-bottom:16px">${subject ?? name}</h2>
-  <p style="font-size:15px;color:#94a3b8;margin-bottom:20px">Hi ${fullName},</p>
-  <p style="font-size:14px;color:#cbd5e1;line-height:1.7">This message was sent to you as part of the <strong style="color:#f8fafc">${name}</strong> campaign.</p>
-  <hr style="border:none;border-top:1px solid #1e293b;margin:32px 0"/>
-  <p style="font-size:12px;color:#475569">You're receiving this email because you're in our system.
-    <a href="#" style="color:#6366f1;text-decoration:none">Unsubscribe</a>
-  </p>
-</div></body></html>`;
 }

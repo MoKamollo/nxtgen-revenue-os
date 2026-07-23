@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { deals, contacts, companies, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, ilike, or } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
     const orgId = request.headers.get("x-tenant-id");
+    if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
     const query = db
       .select({
@@ -30,9 +31,19 @@ export async function GET(request: NextRequest) {
       .leftJoin(companies, eq(deals.companyId, companies.id))
       .leftJoin(users, eq(deals.ownerId, users.id));
 
-    const results = orgId
-      ? await query.where(eq(deals.organizationId, orgId)).limit(100)
-      : await query.limit(100);
+    const searchParam = request.nextUrl.searchParams.get("search");
+    const stageParam  = request.nextUrl.searchParams.get("stage");
+
+    const conditions = [eq(deals.organizationId, orgId)];
+    const validStages = ["prospecting","qualification","proposal","negotiation","closed_won","closed_lost"] as const;
+    if (stageParam && validStages.includes(stageParam as typeof validStages[number])) {
+      conditions.push(eq(deals.stage, stageParam as typeof validStages[number]));
+    }
+    if (searchParam) {
+      conditions.push(or(ilike(deals.name, `%${searchParam}%`))!);
+    }
+
+    const results = await query.where(and(...conditions)).limit(100);
 
     const shaped = results.map((r) => ({
       id: r.id,

@@ -15,8 +15,13 @@ function LoginForm() {
   const verified = params.get("verified") === "1";
   const urlError = params.get("error");
   const errorMessages: Record<string, string> = {
-    missing_token: "SSO token missing. Please try again.",
-    invalid_token: "SSO token invalid or expired. Please log in.",
+    missing_token:       "SSO token missing. Please try again.",
+    invalid_token:       "SSO token invalid or expired. Please log in.",
+    google_cancelled:    "Google sign-in was cancelled.",
+    invalid_state:       "Invalid request. Please try again.",
+    email_not_verified:  "Your Google email is not verified.",
+    google_failed:       "Google sign-in failed. Please try again.",
+    google_unavailable:  "Google sign-in is temporarily unavailable.",
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -41,7 +46,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="rounded-2xl border border-[#162440] bg-[#080F1E] p-8">
+    <div className="rounded-2xl border border-[#162440] bg-[#080F1E]/90 p-8 backdrop-blur-sm">
       <h1 className="text-xl font-bold text-white mb-1">Welcome back</h1>
       <p className="text-sm text-[#64748b] mb-6">
         No account?{" "}
@@ -122,7 +127,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-[#04080F] flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{backgroundColor:'#04080F',backgroundImage:'url("/space-bg.png")',backgroundSize:'cover',backgroundPosition:'center',backgroundRepeat:'no-repeat',backgroundAttachment:'fixed'}}>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-2 mb-8">
           <a href="/" style={{ width: 158, height: 32, overflow: "hidden", display: "block" }}>

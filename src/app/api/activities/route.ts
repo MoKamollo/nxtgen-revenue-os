@@ -1,17 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   const orgId = request.headers.get("x-tenant-id");
   if (!orgId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   try {
-    const results = await db.select().from(activities)
+    const results = await db
+      .select({
+        id: activities.id,
+        type: activities.type,
+        subject: activities.subject,
+        body: activities.body,
+        contactId: activities.contactId,
+        dealId: activities.dealId,
+        userId: activities.userId,
+        scheduledAt: activities.scheduledAt,
+        duration: activities.duration,
+        outcome: activities.outcome,
+        completedAt: activities.completedAt,
+        createdAt: activities.createdAt,
+        contactFirstName: contacts.firstName,
+        contactLastName: contacts.lastName,
+      })
+      .from(activities)
+      .leftJoin(contacts, eq(activities.contactId, contacts.id))
       .where(eq(activities.organizationId, orgId))
       .orderBy(desc(activities.createdAt))
       .limit(50);
-    return NextResponse.json({ data: results, total: results.length });
+
+    const shaped = results.map((r) => ({
+      ...r,
+      contactName: r.contactFirstName
+        ? `${r.contactFirstName} ${r.contactLastName ?? ""}`.trim()
+        : null,
+      contactFirstName: undefined,
+      contactLastName: undefined,
+    }));
+
+    return NextResponse.json({ data: shaped, total: shaped.length });
   } catch {
     return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });
   }
@@ -60,6 +88,14 @@ export async function POST(request: NextRequest) {
           });
         } catch { /* email failure doesn't block activity creation */ }
       }
+    }
+
+    // Update lastContactedAt on the linked contact so AI insights stay accurate
+    if (activity.contactId) {
+      await db
+        .update(contacts)
+        .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(contacts.id, activity.contactId), eq(contacts.organizationId, orgId)));
     }
 
     return NextResponse.json({ data: activity }, { status: 201 });

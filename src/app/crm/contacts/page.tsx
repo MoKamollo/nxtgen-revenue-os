@@ -14,6 +14,7 @@ import {
   ArrowUpDown, Pencil, BarChart2,
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 type Contact = {
@@ -32,9 +33,10 @@ const filterOptions = [
 ];
 
 export default function ContactsPage() {
+  const searchParams = useSearchParams();
   const [view, setView] = useState<"table" | "grid">("table");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") ?? "all");
   const [selected, setSelected] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState("score");
   const [allContacts, setAllContacts] = useState<Contact[]>([]);

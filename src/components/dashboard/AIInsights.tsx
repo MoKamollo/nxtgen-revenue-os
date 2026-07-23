@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Bot, TrendingUp, AlertTriangle, Zap, ArrowUpRight, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/org";
 
 type Insight = {
@@ -21,7 +22,15 @@ const typeConfig = {
   campaign:    { icon: Zap,           color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-500/20",   badge: "warning"  as const, label: "Campaign" },
 };
 
+const INSIGHT_ROUTES: Record<string, string> = {
+  churn:       "/crm/contacts?status=churned",
+  opportunity: "/crm/deals",
+  expansion:   "/crm/contacts?status=vip",
+  campaign:    "/email/campaigns",
+};
+
 export function AIInsightsPanel() {
+  const router = useRouter();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [dismissed, setDismissed] = useState<string[]>([]);
 
@@ -81,7 +90,10 @@ export function AIInsightsPanel() {
                   </div>
                 )}
                 {insight.impact && <div className="text-xs font-semibold text-emerald-400 mb-3">{insight.impact}</div>}
-                <button className={cn("w-full flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all", config.bg, config.color, "hover:opacity-80")}>
+                <button
+                  onClick={() => router.push(INSIGHT_ROUTES[insight.type] ?? "/crm/contacts")}
+                  className={cn("w-full flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all", config.bg, config.color, "hover:opacity-80")}
+                >
                   <Bot size={12} />{insight.action}
                 </button>
               </div>

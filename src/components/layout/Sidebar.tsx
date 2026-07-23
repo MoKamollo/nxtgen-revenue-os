@@ -32,7 +32,7 @@ import {
   Hash,
   LogOut,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "@/hooks/useSession";
 
 interface NavItem {
@@ -135,15 +135,13 @@ const navigation: NavItem[] = [
     label: "Inbox",
     href: "/inbox",
     icon: MessageSquare,
-    badge: 7,
-    badgeVariant: "danger",
   },
   {
     label: "Support",
     href: "/support",
     icon: HeadphonesIcon,
     children: [
-      { label: "Tickets", href: "/support/tickets", icon: FileText, badge: 43, badgeVariant: "warning" },
+      { label: "Tickets", href: "/support/tickets", icon: FileText, badgeVariant: "warning" },
       { label: "Knowledge Base", href: "/support/kb", icon: Layers },
       { label: "NPS & CSAT", href: "/support/nps", icon: Star },
     ],
@@ -177,6 +175,17 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const { session } = useSession();
   const userName  = session?.user?.name  ?? session?.org?.name ?? "…";
   const userTitle = session?.user?.jobTitle ?? session?.role ?? "";
+  const [badgeOverrides, setBadgeOverrides] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetch("/api/tickets")
+      .then((r) => r.json())
+      .then((json) => {
+        const open = (json.data ?? []).filter((t: { status: string }) => t.status === "open").length;
+        if (open > 0) setBadgeOverrides((prev) => ({ ...prev, "/support/tickets": open }));
+      })
+      .catch(() => {});
+  }, []);
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -231,6 +240,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             isActive={isActive}
             expanded={expanded}
             onToggle={toggleExpanded}
+            badgeOverrides={badgeOverrides}
           />
         ))}
       </nav>
@@ -279,17 +289,20 @@ function NavItemComponent({
   isActive,
   expanded,
   onToggle,
+  badgeOverrides = {},
 }: {
   item: NavItem;
   collapsed?: boolean;
   isActive: (href: string) => boolean;
   expanded: string[];
   onToggle: (href: string) => void;
+  badgeOverrides?: Record<string, number>;
 }) {
   const active = isActive(item.href);
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = expanded.includes(item.href);
   const Icon = item.icon;
+  const resolvedBadge = badgeOverrides[item.href] ?? item.badge;
 
   if (hasChildren && !collapsed) {
     return (
@@ -305,9 +318,9 @@ function NavItemComponent({
         >
           <Icon size={15} className="shrink-0" />
           <span className="flex-1 text-xs font-medium">{item.label}</span>
-          {item.badge && (
+          {resolvedBadge && (
             <Badge variant={item.badgeVariant || "default"} size="sm">
-              {item.badge}
+              {resolvedBadge}
             </Badge>
           )}
           {isExpanded ? (
@@ -321,6 +334,7 @@ function NavItemComponent({
             {item.children!.map((child) => {
               const ChildIcon = child.icon;
               const childActive = isActive(child.href);
+              const childBadge = badgeOverrides[child.href] ?? child.badge;
               return (
                 <Link
                   key={child.href}
@@ -334,9 +348,9 @@ function NavItemComponent({
                 >
                   <ChildIcon size={13} className="shrink-0" />
                   <span className="flex-1">{child.label}</span>
-                  {child.badge && (
+                  {childBadge && (
                     <Badge variant={child.badgeVariant || "default"} size="sm">
-                      {child.badge}
+                      {childBadge}
                     </Badge>
                   )}
                 </Link>
@@ -364,9 +378,9 @@ function NavItemComponent({
       {!collapsed && (
         <>
           <span className="flex-1 text-xs font-medium">{item.label}</span>
-          {item.badge && (
+          {resolvedBadge && (
             <Badge variant={item.badgeVariant || "default"} size="sm">
-              {item.badge}
+              {resolvedBadge}
             </Badge>
           )}
         </>

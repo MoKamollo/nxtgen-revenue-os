@@ -31,12 +31,25 @@ const DEFAULT_KPIS = {
 
 export default function DashboardPage() {
   const [kpis, setKpis] = useState(DEFAULT_KPIS);
+  const [period, setPeriod] = useState("30d");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
-    fetch(apiUrl("/api/analytics", { type: "overview" }))
-      .then((r) => r.json())
-      .then((j) => { if (j.data?.kpis) setKpis({ ...DEFAULT_KPIS, ...j.data.kpis }); });
-  }, []);
+    let cancelled = false;
+    const load = () => {
+      fetch(apiUrl("/api/analytics", { type: "overview", period }))
+        .then((r) => r.json())
+        .then((j) => {
+          if (cancelled) return;
+          if (j.data?.kpis) setKpis({ ...DEFAULT_KPIS, ...j.data.kpis });
+          setLastUpdated(new Date());
+        })
+        .catch(() => {});
+    };
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [period]);
 
   return (
     <AppLayout>
@@ -50,15 +63,20 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5">
+            <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5" title={lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"}>
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs font-medium text-emerald-400">Live</span>
             </div>
-            <select className="h-8 rounded-lg border border-surface-700 bg-surface-900 text-xs text-surface-300 px-2.5 focus:outline-none focus:border-brand-500">
-              <option>Last 30 days</option>
-              <option>Last 90 days</option>
-              <option>This year</option>
-              <option>All time</option>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="h-8 rounded-lg border border-surface-700 bg-surface-900 text-xs text-surface-300 px-2.5 focus:outline-none focus:border-brand-500"
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+              <option value="1y">This year</option>
+              <option value="all">All time</option>
             </select>
           </div>
         </div>
@@ -120,7 +138,7 @@ export default function DashboardPage() {
 
         {/* Main Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <RevenueChart />
+          <RevenueChart period={period} />
           <PipelineChart />
         </div>
 

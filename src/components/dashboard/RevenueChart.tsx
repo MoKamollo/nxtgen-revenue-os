@@ -33,15 +33,15 @@ const CustomTooltip = ({ active, payload, label }: {
 
 type ViewType = "mrr" | "revenue";
 
-export function RevenueChart() {
+export function RevenueChart({ period }: { period?: string }) {
   const [view, setView] = useState<ViewType>("mrr");
   const [data, setData] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(apiUrl("/api/analytics", { type: "overview" }))
+    fetch(apiUrl("/api/analytics", { type: "overview", ...(period ? { period } : {}) }))
       .then((r) => r.json())
       .then((j) => setData(j.data?.revenue ?? []));
-  }, []);
+  }, [period]);
 
   return (
     <Card className="col-span-2">

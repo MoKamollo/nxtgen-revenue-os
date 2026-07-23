@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { deals } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { deals, contacts } from "@/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { triggerAutomation } from "@/lib/automation";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,11 +30,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   await db.update(deals).set(updates).where(and(eq(deals.id, id), eq(deals.organizationId, orgId)));
 
+  const contactId = (body.contactId ?? existing?.contactId) ?? undefined;
+
+  // Promote contact to customer when deal closes as won (if they were lead/prospect)
+  if (body.stage === "closed_won" && contactId) {
+    await db
+      .update(contacts)
+      .set({ status: "customer", updatedAt: new Date() })
+      .where(
+        and(
+          eq(contacts.id, contactId),
+          eq(contacts.organizationId, orgId),
+          inArray(contacts.status, ["lead", "prospect"]),
+        ),
+      );
+  }
+
   if (body.stage) {
-    await triggerAutomation(orgId, "deal.stage_changed", {
-      dealId: id,
-      contactId: (body.contactId ?? existing?.contactId) ?? undefined,
-    });
+    await triggerAutomation(orgId, "deal.stage_changed", { dealId: id, contactId });
   }
 
   return NextResponse.json({ ok: true });

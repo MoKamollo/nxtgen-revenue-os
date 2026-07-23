@@ -8,7 +8,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/org";
 import {
   Plus, Search, Filter, TrendingUp, Calendar,
-  Layers, BarChart3, X, Loader2, ChevronRight,
+  Layers, BarChart3, X, Loader2, ChevronRight, Pencil,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 
@@ -35,6 +35,7 @@ export default function DealsPage() {
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editDeal, setEditDeal] = useState<Deal | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "", value: "", stage: "prospecting",
@@ -50,24 +51,50 @@ export default function DealsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const openEdit = (deal: Deal) => {
+    setEditDeal(deal);
+    setForm({
+      name: deal.name,
+      value: deal.value.toString(),
+      stage: deal.stage,
+      probability: deal.probability.toString(),
+      expectedCloseDate: deal.expectedCloseDate ? deal.expectedCloseDate.slice(0, 10) : "",
+    });
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditDeal(null);
+    setForm({ name: "", value: "", stage: "prospecting", expectedCloseDate: "", probability: "10" });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
     setSaving(true);
-    await fetch(apiUrl("/api/deals"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        value: parseFloat(form.value) || 0,
-        stage: form.stage,
-        probability: parseInt(form.probability) || 10,
-        expectedCloseDate: form.expectedCloseDate || null,
-      }),
-    });
+    const payload = {
+      name: form.name,
+      value: parseFloat(form.value) || 0,
+      stage: form.stage,
+      probability: parseInt(form.probability) || 10,
+      expectedCloseDate: form.expectedCloseDate || null,
+    };
+    if (editDeal) {
+      await fetch(apiUrl(`/api/deals/${editDeal.id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetch(apiUrl("/api/deals"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
     setSaving(false);
-    setShowModal(false);
-    setForm({ name: "", value: "", stage: "prospecting", expectedCloseDate: "", probability: "10" });
+    closeModal();
     load();
   };
 
@@ -181,9 +208,14 @@ export default function DealsPage() {
                             <div key={deal.id} className="rounded-xl border border-surface-800 bg-surface-900/70 p-3 hover:border-surface-700 transition-all group">
                               <div className="flex items-start justify-between mb-2">
                                 <p className="text-xs font-semibold text-surface-100 leading-tight flex-1 pr-2">{deal.name}</p>
-                                <button onClick={() => handleDelete(deal.id)} className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all">
-                                  <X size={13} />
-                                </button>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                  <button onClick={() => openEdit(deal)} className="text-surface-600 hover:text-brand-400 transition-colors">
+                                    <Pencil size={12} />
+                                  </button>
+                                  <button onClick={() => handleDelete(deal.id)} className="text-surface-600 hover:text-red-400 transition-colors">
+                                    <X size={13} />
+                                  </button>
+                                </div>
                               </div>
                               <p className="text-lg font-bold text-surface-50 mb-2">{formatCurrency(deal.value)}</p>
                               {deal.contact && (
@@ -291,9 +323,14 @@ export default function DealsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <button onClick={() => handleDelete(deal.id)} className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all">
-                            <X size={14} />
-                          </button>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => openEdit(deal)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all">
+                              <Pencil size={12} />
+                            </button>
+                            <button onClick={() => handleDelete(deal.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                              <X size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -309,10 +346,10 @@ export default function DealsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
-              <h2 className="text-sm font-bold text-surface-100">New Deal</h2>
-              <button onClick={() => setShowModal(false)} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
+              <h2 className="text-sm font-bold text-surface-100">{editDeal ? "Edit Deal" : "New Deal"}</h2>
+              <button onClick={closeModal} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
             </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-surface-400 mb-1.5">Deal name *</label>
                 <input required value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder="e.g. Acme Corp — Enterprise"
@@ -346,12 +383,12 @@ export default function DealsPage() {
                   className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 focus:outline-none focus:border-brand-500" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowModal(false)}
+                <button type="button" onClick={closeModal}
                   className="h-9 px-4 rounded-lg border border-surface-700 text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
                 <button type="submit" disabled={saving}
                   className="h-9 px-4 rounded-lg bg-gradient-to-r from-brand-500 to-blue-500 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
                   {saving && <Loader2 size={13} className="animate-spin" />}
-                  {saving ? "Saving…" : "Create Deal"}
+                  {saving ? "Saving…" : editDeal ? "Save Changes" : "Create Deal"}
                 </button>
               </div>
             </form>

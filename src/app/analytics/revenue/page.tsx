@@ -62,7 +62,10 @@ export default function RevenueAnalyticsPage() {
   });
 
   const load = useCallback(() => {
-    fetch(apiUrl("/api/analytics", { type: "overview" }))
+    // Map UI period labels to API period params (keys must match button values)
+    const periodMap: Record<string, string> = { "3m": "90d", "6m": "90d", "12m": "1y", "YTD": "1y", "All": "all" };
+    const apiPeriod = periodMap[period] ?? "1y";
+    fetch(apiUrl("/api/analytics", { type: "overview", period: apiPeriod }))
       .then(r => r.json())
       .then(j => {
         if (j.data?.kpis) setKpis(j.data.kpis);
@@ -70,7 +73,7 @@ export default function RevenueAnalyticsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [period]);
 
   useEffect(() => { load(); }, [load]);
 

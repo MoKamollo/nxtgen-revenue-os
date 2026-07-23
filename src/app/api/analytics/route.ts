@@ -23,6 +23,15 @@ export async function GET(request: NextRequest) {
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    // Period window for deal/contact aggregations
+    const periodParam = request.nextUrl.searchParams.get("period") ?? "30d";
+    const periodDays: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 };
+    const windowDays = periodDays[periodParam] ?? 30;
+    const windowStart = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
+
+    // NPS always capped at 90 days for freshness (W4)
+    const npsWindowStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
     const [contactRows, dealRows, metrics, workflowRows, ticketRows, spendRows, npsRows] = await Promise.all([
       db.select().from(contacts).where(eq(contacts.organizationId, orgId)),
       db.select().from(deals).where(eq(deals.organizationId, orgId)),
@@ -31,15 +40,33 @@ export async function GET(request: NextRequest) {
       db.select().from(tickets).where(eq(tickets.organizationId, orgId)),
       db.select().from(marketingSpend).where(eq(marketingSpend.organizationId, orgId)),
       db.select({ score: npsResponses.score }).from(npsResponses)
-        .where(and(eq(npsResponses.organizationId, orgId), isNotNull(npsResponses.submittedAt), isNotNull(npsResponses.score))),
+        .where(and(
+          eq(npsResponses.organizationId, orgId),
+          isNotNull(npsResponses.submittedAt),
+          isNotNull(npsResponses.score),
+          gte(npsResponses.submittedAt, npsWindowStart),
+        )),
     ]);
 
     // ── KPI derivations ────────────────────────────────────────────────────────
 
+    // Pipeline value = all currently open deals (always current state, not date-filtered)
     const activeDeals = dealRows.filter(d => !["closed_won","closed_lost"].includes(d.stage ?? ""));
     const pipelineValue = activeDeals.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0);
-    const wonDeals = dealRows.filter(d => d.stage === "closed_won");
-    const lostDeals = dealRows.filter(d => d.stage === "closed_lost");
+
+    // Win rate + avg deal size = deals closed within the selected period
+    const wonDeals = dealRows.filter(d => {
+      if (d.stage !== "closed_won") return false;
+      if (periodParam === "all") return true;
+      const closedAt = d.wonAt ?? d.updatedAt;
+      return closedAt && new Date(closedAt) >= windowStart;
+    });
+    const lostDeals = dealRows.filter(d => {
+      if (d.stage !== "closed_lost") return false;
+      if (periodParam === "all") return true;
+      const closedAt = d.lostAt ?? d.updatedAt;
+      return closedAt && new Date(closedAt) >= windowStart;
+    });
     const closedDeals = wonDeals.length + lostDeals.length;
     const winRate = closedDeals > 0 ? Math.round((wonDeals.length / closedDeals) * 1000) / 10 : 0;
     const avgDealSize = wonDeals.length > 0 ? wonDeals.reduce((s, d) => s + parseFloat(d.value ?? "0"), 0) / wonDeals.length : 0;

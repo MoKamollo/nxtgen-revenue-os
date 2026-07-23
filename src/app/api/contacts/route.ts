@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { contacts, companies, users } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { contacts, companies, users, deals } from "@/db/schema";
+import { eq, sql, and, ilike, or } from "drizzle-orm";
 import { triggerAutomation } from "@/lib/automation";
 
 export async function GET(request: NextRequest) {
@@ -30,7 +30,40 @@ export async function GET(request: NextRequest) {
       .leftJoin(companies, eq(contacts.companyId, companies.id))
       .leftJoin(users, eq(contacts.ownerId, users.id));
 
-    const results = await query.where(eq(contacts.organizationId, orgId)).limit(200);
+    const searchParam = request.nextUrl.searchParams.get("search");
+    const statusParam = request.nextUrl.searchParams.get("status");
+
+    const conditions = [eq(contacts.organizationId, orgId)];
+    if (statusParam && statusParam !== "all") {
+      const validStatuses = ["lead", "prospect", "customer", "churned", "vip"] as const;
+      if (validStatuses.includes(statusParam as typeof validStatuses[number])) {
+        conditions.push(eq(contacts.status, statusParam as typeof validStatuses[number]));
+      }
+    }
+    if (searchParam) {
+      conditions.push(
+        or(
+          ilike(contacts.firstName, `%${searchParam}%`),
+          ilike(contacts.lastName, `%${searchParam}%`),
+          ilike(contacts.email, `%${searchParam}%`),
+          ilike(contacts.phone, `%${searchParam}%`),
+        )!
+      );
+    }
+
+    const results = await query.where(and(...conditions)).limit(200);
+
+    // Aggregate closed_won deal value per contact for accurate revenue
+    const revenueRows = await db
+      .select({
+        contactId: deals.contactId,
+        total: sql<string>`COALESCE(SUM(${deals.value}::numeric), 0)`,
+      })
+      .from(deals)
+      .where(and(eq(deals.organizationId, orgId), eq(deals.stage, "closed_won")))
+      .groupBy(deals.contactId);
+
+    const revenueMap = new Map(revenueRows.map((r) => [r.contactId, parseFloat(r.total)]));
 
     const shaped = results.map((r) => ({
       id: r.id,
@@ -47,7 +80,7 @@ export async function GET(request: NextRequest) {
       createdAt: r.createdAt,
       company: r.companyName ?? "",
       owner: r.ownerName ?? "",
-      revenue: 0,
+      revenue: revenueMap.get(r.id) ?? 0,
     }));
 
     return NextResponse.json({ data: shaped, total: shaped.length });

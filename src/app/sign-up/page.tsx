@@ -37,7 +37,7 @@ function SignUpForm() {
   }
 
   if (verified) return (
-    <div className="rounded-2xl border border-[#162440] bg-[#080F1E] p-8 text-center">
+    <div className="rounded-2xl border border-[#162440] bg-[#080F1E]/90 p-8 backdrop-blur-sm text-center">
       <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
         <CheckCircle size={22} className="text-emerald-400" />
       </div>
@@ -52,7 +52,7 @@ function SignUpForm() {
   );
 
   return (
-    <div className="rounded-2xl border border-[#162440] bg-[#080F1E] p-8">
+    <div className="rounded-2xl border border-[#162440] bg-[#080F1E]/90 p-8 backdrop-blur-sm">
       <h1 className="text-xl font-bold text-white mb-1">Create your account</h1>
       <p className="text-sm text-[#64748b] mb-6">
         Already have an account?{" "}
@@ -142,7 +142,7 @@ function SignUpForm() {
 
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen bg-[#04080F] flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{backgroundColor:'#04080F',backgroundImage:'url("/space-bg.png")',backgroundSize:'cover',backgroundPosition:'center',backgroundRepeat:'no-repeat',backgroundAttachment:'fixed'}}>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-2 mb-8">
           <a href="/" style={{ width: 158, height: 32, overflow: "hidden", display: "block" }}>

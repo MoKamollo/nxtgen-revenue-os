@@ -44,11 +44,11 @@ const SETTINGS_SECTIONS = [
 ];
 
 const INTEGRATIONS = [
-  { name: "Gmail",            icon: Mail,         connected: true,  category: "Email" },
+  { name: "Gmail",            icon: Mail,         connected: false, category: "Email" },
   { name: "Outlook",          icon: Mail,         connected: false, category: "Email" },
-  { name: "Slack",            icon: MessageSquare,connected: true,  category: "Communication" },
-  { name: "Google Calendar",  icon: Calendar,     connected: true,  category: "Calendar" },
-  { name: "Stripe",           icon: CreditCard,   connected: true,  category: "Payments" },
+  { name: "Slack",            icon: MessageSquare,connected: false, category: "Communication" },
+  { name: "Google Calendar",  icon: Calendar,     connected: false, category: "Calendar" },
+  { name: "Stripe",           icon: CreditCard,   connected: false, category: "Payments" },
   { name: "Zapier",           icon: Zap,          connected: false, category: "Automation" },
   { name: "PostgreSQL",       icon: Database,     connected: true,  category: "Database" },
   { name: "Webhooks",         icon: Webhook,      connected: false, category: "Developer" },
@@ -84,6 +84,8 @@ export default function SettingsPage() {
   const [spendRows, setSpendRows] = useState<SpendRow[]>([]);
   const [spendForm, setSpendForm] = useState({ month: new Date().toISOString().slice(0, 7), channel: "other", amount: "", notes: "" });
   const [addingSpend, setAddingSpend] = useState(false);
+  const [contactCount, setContactCount] = useState<number | null>(null);
+  const [emailsSentMonth, setEmailsSentMonth] = useState<number | null>(null);
 
   useEffect(() => {
     fetch(apiUrl("/api/users/me"))
@@ -110,7 +112,26 @@ export default function SettingsPage() {
         .then(r => r.json())
         .then(j => setSpendRows(j.data ?? []));
     }
-  }, [activeSection]);
+    if (activeSection === "billing" && contactCount === null) {
+      // Fetch live contact count and monthly email usage
+      fetch(apiUrl("/api/contacts"))
+        .then(r => r.json())
+        .then(j => setContactCount((j.data ?? []).length))
+        .catch(() => {});
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      fetch(apiUrl("/api/campaigns"))
+        .then(r => r.json())
+        .then(j => {
+          const sent = (j.data ?? [])
+            .filter((c: { sentAt: string | null; stats: { sent: number } }) =>
+              c.sentAt && c.sentAt.startsWith(currentMonth)
+            )
+            .reduce((s: number, c: { stats: { sent: number } }) => s + (c.stats?.sent ?? 0), 0);
+          setEmailsSentMonth(sent);
+        })
+        .catch(() => {});
+    }
+  }, [activeSection, contactCount]);
 
   useEffect(() => {
     if (activeSection === "organization" || activeSection === "team" || activeSection === "billing") {
@@ -430,8 +451,8 @@ export default function SettingsPage() {
                       <div className="mt-4 grid grid-cols-3 gap-3">
                         {[
                           { label: "Members", used: orgData?.members?.length ?? "—", limit: "Unlimited" },
-                          { label: "Contacts", used: "—", limit: "Unlimited" },
-                          { label: "Emails/month", used: "—", limit: "Unlimited" },
+                          { label: "Contacts", used: contactCount !== null ? contactCount : "—", limit: "Unlimited" },
+                          { label: "Emails/month", used: emailsSentMonth !== null ? emailsSentMonth : "—", limit: "Unlimited" },
                         ].map(usage => (
                           <div key={usage.label} className="rounded-lg bg-surface-900/60 p-3">
                             <p className="text-xs text-surface-500">{usage.label}</p>
@@ -532,7 +553,7 @@ export default function SettingsPage() {
                       <p className="text-xs font-medium text-surface-200">Authenticator App</p>
                       <p className="text-xs text-surface-500">Use Google Authenticator or similar</p>
                     </div>
-                    <Badge variant="success" size="sm" dot>Enabled</Badge>
+                    <Button variant="outline" size="xs">Set up 2FA</Button>
                   </div>
                 </div>
                 <div className="rounded-xl border border-surface-800 bg-surface-900/50 p-5 space-y-4">

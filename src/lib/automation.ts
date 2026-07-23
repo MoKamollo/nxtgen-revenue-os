@@ -75,8 +75,14 @@ export async function triggerAutomation(
         }
       }
 
+      // Determine if this enrollment completed all steps (no wait step hit)
+      const hitWait = steps.some((s) => s.type === "wait");
+      const newEnrolled = (wf.enrolledCount ?? 0) + 1;
+      const newCompleted = hitWait ? (wf.completedCount ?? 0) : (wf.completedCount ?? 0) + 1;
+      const conversionRate = (newEnrolled > 0 ? Math.round((newCompleted / newEnrolled) * 100 * 10) / 10 : 0).toFixed(2);
+
       await db.update(workflows)
-        .set({ enrolledCount: (wf.enrolledCount ?? 0) + 1, updatedAt: new Date() })
+        .set({ enrolledCount: newEnrolled, completedCount: newCompleted, conversionRate, updatedAt: new Date() })
         .where(eq(workflows.id, wf.id));
     }
   } catch (err) {

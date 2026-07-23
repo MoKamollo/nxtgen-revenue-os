@@ -38,6 +38,17 @@ const HEADER_MAP: Record<string, keyof ContactRow> = {
   leadsource: "source",
 };
 
+function calcScore(data: { email?: string | null; phone?: string | null; jobTitle?: string | null; source?: string | null; status?: string | null }): number {
+  const statusBase: Record<string, number> = { vip: 90, customer: 70, prospect: 45, lead: 25, churned: 10 };
+  const sourceBonus: Record<string, number> = { referral: 15, organic: 10, event: 8, paid_ads: 5, cold_outreach: 2, other: 3 };
+  let score = statusBase[data.status ?? "lead"] ?? 25;
+  if (data.email) score += 10;
+  if (data.phone) score += 5;
+  if (data.jobTitle) score += 5;
+  score += sourceBonus[data.source ?? ""] ?? 0;
+  return Math.min(score, 100);
+}
+
 function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
   let current = "";
@@ -123,7 +134,7 @@ export async function POST(request: NextRequest) {
           jobTitle: c.jobTitle ?? null,
           company: c.company ?? null,
           source: c.source ?? "import",
-          score: 0,
+          score: calcScore({ email: c.email, phone: c.phone, jobTitle: c.jobTitle, source: c.source ?? "import", status: c.status ?? "lead" }),
           tags: [],
         }))
       );

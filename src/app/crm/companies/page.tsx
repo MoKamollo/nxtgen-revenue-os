@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/org";
-import { Plus, Search, Building2, Globe, Users, X, Loader2 } from "lucide-react";
+import { Plus, Search, Building2, Globe, Users, X, Loader2, Pencil } from "lucide-react";
 import { useState, useEffect } from "react";
 
 type Company = {
@@ -20,6 +20,7 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [editCompany, setEditCompany] = useState<Company | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name:"", domain:"", industry:"", size:"", website:"", phone:"" });
 
@@ -37,18 +38,25 @@ export default function CompaniesPage() {
     (c.domain ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const openEdit = (c: Company) => {
+    setEditCompany(c);
+    setForm({ name: c.name, domain: c.domain ?? "", industry: c.industry ?? "", size: c.size ?? "", website: c.website ?? "", phone: c.phone ?? "" });
+    setShowModal(true);
+  };
+
+  const closeModal = () => { setShowModal(false); setEditCompany(null); setForm({ name:"", domain:"", industry:"", size:"", website:"", phone:"" }); };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
     setSaving(true);
-    await fetch(apiUrl("/api/companies"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    if (editCompany) {
+      await fetch(apiUrl(`/api/companies/${editCompany.id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    } else {
+      await fetch(apiUrl("/api/companies"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    }
     setSaving(false);
-    setShowModal(false);
-    setForm({ name:"", domain:"", industry:"", size:"", website:"", phone:"" });
+    closeModal();
     load();
   };
 
@@ -120,7 +128,12 @@ export default function CompaniesPage() {
                         : <span className="text-xs text-surface-600">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => handleDelete(c.id)} className="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:underline transition-opacity">Delete</button>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openEdit(c)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all">
+                          <Pencil size={12} />
+                        </button>
+                        <button onClick={() => handleDelete(c.id)} className="text-xs text-red-400 hover:underline">Delete</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -134,10 +147,10 @@ export default function CompaniesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
-              <h2 className="text-sm font-bold text-surface-100">Add Company</h2>
-              <button onClick={() => setShowModal(false)} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
+              <h2 className="text-sm font-bold text-surface-100">{editCompany ? "Edit Company" : "Add Company"}</h2>
+              <button onClick={closeModal} className="text-surface-500 hover:text-surface-300"><X size={16} /></button>
             </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-surface-400 mb-1.5">Company name *</label>
                 <input required value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder="Acme Corp"
@@ -179,12 +192,12 @@ export default function CompaniesPage() {
                   className="w-full h-9 rounded-lg border border-surface-700 bg-surface-800 px-3 text-sm text-surface-100 placeholder:text-surface-600 focus:outline-none focus:border-brand-500" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowModal(false)}
+                <button type="button" onClick={closeModal}
                   className="h-9 px-4 rounded-lg border border-surface-700 text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
                 <button type="submit" disabled={saving}
                   className="h-9 px-4 rounded-lg bg-gradient-to-r from-brand-500 to-blue-500 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
                   {saving && <Loader2 size={13} className="animate-spin" />}
-                  {saving ? "Saving…" : "Add Company"}
+                  {saving ? "Saving…" : editCompany ? "Save Changes" : "Add Company"}
                 </button>
               </div>
             </form>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { timeAgo, cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/org";
-import { Plus, Mail, Phone, Calendar, FileText, MessageSquare, Clock, CheckCircle, X, Loader2, Activity } from "lucide-react";
+import { Plus, Mail, Phone, Calendar, FileText, MessageSquare, Clock, CheckCircle, X, Loader2, Activity, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 
 type ActivityRow = {
@@ -43,6 +43,12 @@ export default function ActivitiesPage() {
 
   const filtered = activities.filter(a => typeFilter === "all" || a.type === typeFilter);
   const countByType = (t: string) => activities.filter(a => a.type === t).length;
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this activity?")) return;
+    setActivities(prev => prev.filter(a => a.id !== id));
+    await fetch(apiUrl(`/api/activities/${id}`), { method: "DELETE" });
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +116,7 @@ export default function ActivitiesPage() {
                 const conf = TYPE_CONFIG[activity.type] ?? TYPE_CONFIG.note;
                 const Icon = conf.icon;
                 return (
-                  <div key={activity.id} className="flex items-start gap-4 px-4 py-4 hover:bg-surface-800/30 cursor-pointer transition-colors group">
+                  <div key={activity.id} className="flex items-start gap-4 px-4 py-4 hover:bg-surface-800/30 transition-colors group">
                     <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", conf.bg)}>
                       <Icon size={16} className={conf.color} />
                     </div>
@@ -119,13 +125,21 @@ export default function ActivitiesPage() {
                       {activity.body && <p className="text-xs text-surface-500 mt-0.5 truncate">{activity.body}</p>}
                       {activity.outcome && <p className="text-xs text-surface-500 mt-1 italic">{activity.outcome}</p>}
                     </div>
-                    <div className="text-right shrink-0">
-                      {activity.scheduledAt ? (
-                        <span className="flex items-center gap-1 text-xs text-amber-400"><Clock size={11} /> Scheduled</span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-xs text-emerald-400"><CheckCircle size={11} /> {timeAgo(new Date(activity.completedAt ?? activity.createdAt))}</span>
-                      )}
-                      {activity.duration && <p className="text-[11px] text-surface-600 mt-0.5">{activity.duration}m</p>}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        {activity.scheduledAt ? (
+                          <span className="flex items-center gap-1 text-xs text-amber-400"><Clock size={11} /> Scheduled</span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-xs text-emerald-400"><CheckCircle size={11} /> {timeAgo(new Date(activity.completedAt ?? activity.createdAt))}</span>
+                        )}
+                        {activity.duration && <p className="text-[11px] text-surface-600 mt-0.5">{activity.duration}m</p>}
+                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDelete(activity.id); }}
+                        className="flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
                 );

@@ -205,14 +205,18 @@ export function Sidebar({ collapsed }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex h-14 shrink-0 items-center border-b border-surface-800 px-4">
-        <a href="/" className="flex items-center gap-2.5">
-          <div style={{ width: collapsed ? 28 : 110, height: 22, overflow: "hidden", flexShrink: 0 }}>
-            <img src="/nxg-logo-dark.svg" alt="NxtGen" style={{ height: 22, width: "auto" }} />
-          </div>
-          {!collapsed && (
-            <span className="text-xs font-semibold tracking-widest text-brand-400 uppercase">
-              Convert
-            </span>
+        <a href="/" className="flex items-center gap-2">
+          {collapsed ? (
+            <div style={{ width: 28, height: 28, borderRadius: 6, background: "linear-gradient(135deg,#6366f1,#3b9eff)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ color: "#fff", fontWeight: 800, fontSize: 13, fontFamily: "sans-serif" }}>N</span>
+            </div>
+          ) : (
+            <>
+              <img src="/nxtgen-logo.png" alt="NxtGen Convert" style={{ height: 28, width: "auto", flexShrink: 0 }} />
+              <span className="text-xs font-semibold tracking-widest text-brand-400 uppercase ml-1">
+                Convert
+              </span>
+            </>
           )}
         </a>
       </div>

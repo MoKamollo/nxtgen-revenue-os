@@ -8,25 +8,10 @@ import { Input, Select } from "@/components/ui/Input";
 import { formatCurrency, timeAgo, cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/org";
 import {
-  Search,
-  Plus,
-  Filter,
-  Download,
-  Upload,
-  MoreHorizontal,
-  Mail,
-  Phone,
-  Star,
-  ChevronDown,
-  SlidersHorizontal,
-  Grid3X3,
-  List,
-  Users,
-  Tag,
-  Building2,
-  TrendingUp,
-  RefreshCcw,
-  ArrowUpDown,
+  Search, Plus, Filter, Download, Upload, MoreHorizontal,
+  Mail, Phone, Star, ChevronDown, SlidersHorizontal,
+  Grid3X3, List, Users, Tag, Building2, TrendingUp,
+  RefreshCcw, ArrowUpDown, HeartPulse,
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
@@ -64,6 +49,8 @@ export default function ContactsPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [npsSending, setNpsSending] = useState<string | null>(null);
+  const [npsSuccess, setNpsSuccess] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -109,6 +96,23 @@ export default function ContactsPage() {
     setEditContact(null);
     setForm({ firstName:"", lastName:"", email:"", phone:"", status:"lead", jobTitle:"", source:"" });
     load();
+  };
+
+  const handleSendNps = async (contactId: string, email: string) => {
+    if (!email) { alert("This contact has no email — cannot send NPS survey."); return; }
+    setNpsSending(contactId);
+    const res = await fetch(apiUrl("/api/nps/send"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactId }),
+    });
+    setNpsSending(null);
+    if (res.ok) {
+      setNpsSuccess(contactId);
+      setTimeout(() => setNpsSuccess(c => c === contactId ? null : c), 3000);
+    } else {
+      const j = await res.json();
+      alert(j.error ?? "Failed to send NPS survey");
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -429,6 +433,18 @@ export default function ContactsPage() {
                           <button className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
                             <Phone size={12} />
                           </button>
+                          <button
+                            onClick={() => handleSendNps(contact.id, contact.email)}
+                            disabled={npsSending === contact.id}
+                            title={contact.email ? "Send NPS Survey" : "No email — cannot send NPS"}
+                            className={cn("flex h-6 w-6 items-center justify-center rounded-md transition-all",
+                              npsSuccess === contact.id ? "text-emerald-400 bg-emerald-500/10" :
+                              !contact.email ? "text-surface-700 cursor-not-allowed" :
+                              "text-surface-500 hover:text-pink-400 hover:bg-pink-500/10")}>
+                            {npsSending === contact.id ? <Loader2 size={12} className="animate-spin" /> :
+                             npsSuccess === contact.id ? <CheckCircle2 size={12} /> :
+                             <HeartPulse size={12} />}
+                          </button>
                           <button onClick={() => openEdit(contact)} className="flex h-6 w-6 items-center justify-center rounded-md text-surface-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all">
                             <RefreshCcw size={12} />
                           </button>
@@ -521,6 +537,17 @@ export default function ContactsPage() {
                     </button>
                     <button className="flex-1 flex items-center justify-center gap-1 h-7 rounded-lg bg-surface-800 hover:bg-surface-700 text-xs text-surface-300 transition-colors">
                       <Phone size={11} /> Call
+                    </button>
+                    <button
+                      onClick={() => handleSendNps(contact.id, contact.email)}
+                      disabled={npsSending === contact.id || !contact.email}
+                      title={contact.email ? "Send NPS Survey" : "No email"}
+                      className={cn("flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
+                        npsSuccess === contact.id ? "bg-emerald-500/20 text-emerald-400" :
+                        "bg-surface-800 hover:bg-pink-500/10 text-surface-400 hover:text-pink-400")}>
+                      {npsSending === contact.id ? <Loader2 size={11} className="animate-spin" /> :
+                       npsSuccess === contact.id ? <CheckCircle2 size={11} /> :
+                       <HeartPulse size={11} />}
                     </button>
                   </div>
                 </div>

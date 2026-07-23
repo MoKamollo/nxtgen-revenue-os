@@ -55,9 +55,9 @@ const navigation: NavItem[] = [
     href: "/crm",
     icon: Users,
     children: [
-      { label: "Contacts", href: "/crm/contacts", icon: Users },
+      { label: "Contacts", href: "/crm/contacts", icon: Users, badgeVariant: "warning" },
       { label: "Companies", href: "/crm/companies", icon: Building2 },
-      { label: "Deals", href: "/crm/deals", icon: TrendingUp },
+      { label: "Deals", href: "/crm/deals", icon: TrendingUp, badgeVariant: "danger" },
       { label: "Activities", href: "/crm/activities", icon: Activity },
       { label: "Tasks", href: "/crm/tasks", icon: FileText },
       { label: "Calendar", href: "/crm/calendar", icon: Calendar },
@@ -81,7 +81,7 @@ const navigation: NavItem[] = [
     badge: "AI",
     badgeVariant: "purple",
     children: [
-      { label: "Workflows", href: "/automation/workflows", icon: Zap },
+      { label: "Workflows", href: "/automation/workflows", icon: Zap, badgeVariant: "success" },
       { label: "Triggers", href: "/automation/triggers", icon: Hash },
       { label: "Templates", href: "/automation/templates", icon: Layers },
     ],
@@ -178,11 +178,14 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const [badgeOverrides, setBadgeOverrides] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    fetch("/api/tickets")
+    fetch("/api/sidebar-counts")
       .then((r) => r.json())
-      .then((json) => {
-        const open = (json.data ?? []).filter((t: { status: string }) => t.status === "open").length;
-        if (open > 0) setBadgeOverrides((prev) => ({ ...prev, "/support/tickets": open }));
+      .then((json: Record<string, number | undefined>) => {
+        const overrides: Record<string, number> = {};
+        for (const [key, val] of Object.entries(json)) {
+          if (val !== undefined && val > 0) overrides[key] = val;
+        }
+        setBadgeOverrides(overrides);
       })
       .catch(() => {});
   }, []);

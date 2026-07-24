@@ -11,6 +11,7 @@ import {
   MessageSquare, Play, Settings, Loader2,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ScatterChart, Scatter, Cell,
@@ -48,7 +49,16 @@ const TASK_ICONS: Record<string, typeof Zap> = {
   low:    BarChart3,
 };
 
+const INSIGHT_ROUTES: Record<string, string> = {
+  "churn-recent":  "/crm/contacts?status=churned",
+  "hot-leads":     "/crm/contacts?status=lead",
+  "vip-expansion": "/crm/deals",
+  "stuck-deals":   "/crm/deals?stage=negotiation",
+  "overdue-tasks": "/crm/tasks",
+};
+
 export default function AIInsightsPage() {
+  const router = useRouter();
   const [contacts, setContacts]   = useState<Contact[]>([]);
   const [insights, setInsights]   = useState<Insight[]>([]);
   const [tasks, setTasks]         = useState<Task[]>([]);
@@ -224,7 +234,7 @@ export default function AIInsightsPage() {
                         <p className="text-xs font-semibold text-surface-100 mb-1">{insight.title}</p>
                         <p className="text-[11px] text-surface-500 leading-relaxed">{insight.body}</p>
                       </div>
-                      <Button variant="outline" size="sm">{insight.action}</Button>
+                      <Button variant="outline" size="sm" onClick={() => { const r = INSIGHT_ROUTES[insight.id]; if (r) router.push(r); }}>{insight.action}</Button>
                     </div>
                   </div>
                 ))}

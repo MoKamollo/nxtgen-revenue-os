@@ -84,16 +84,19 @@ export default function WorkflowsPage() {
     e.preventDefault();
     if (!form.name.trim()) return;
     setSaving(true);
-    const res = await fetch(apiUrl("/api/workflows"), {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.name.trim(), description: form.description, trigger: { event: form.triggerEvent } }),
-    });
-    if (res.ok) {
+    try {
+      const res = await fetch(apiUrl("/api/workflows"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name.trim(), description: form.description, trigger: { event: form.triggerEvent } }),
+      });
       const j = await res.json();
-      setWorkflows(prev => [j.data, ...prev]);
+      if (!res.ok) { alert(j.error ?? "Failed to create workflow"); setSaving(false); return; }
+      setForm({ name: "", description: "", triggerEvent: "contact.created" });
+      setShowModal(false);
+      load(); // re-fetch from DB to confirm save
+    } catch {
+      alert("Network error — please try again");
     }
-    setForm({ name: "", description: "", triggerEvent: "contact.created" });
-    setShowModal(false);
     setSaving(false);
   }
 

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { contacts, deals, tickets, workflows, campaigns } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import Groq from "groq-sdk";
+import { fetchBrainContext } from "@/lib/brain";
 
 export async function POST(request: NextRequest) {
   const orgId = request.headers.get("x-tenant-id");
@@ -50,8 +51,11 @@ export async function POST(request: NextRequest) {
   const totalOpened     = sentCampaigns.reduce((s, c) => s + ((c.stats as Record<string, number>)?.opened ?? 0), 0);
   const avgOpenRate     = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
 
-  const systemPrompt = `You are the NxtGen Convert AI Revenue Assistant — a sharp, direct revenue intelligence advisor embedded inside a B2B SaaS CRM dashboard. You have real-time access to this organisation's live data.
+  // Pull Brain knowledge base (cached 5 min) — runs in parallel with CRM queries above
+  const brainContext = await fetchBrainContext(8000);
 
+  const systemPrompt = `You are the NxtGen Convert AI Revenue Assistant — a sharp, direct revenue intelligence advisor embedded inside a B2B SaaS CRM dashboard. You have real-time access to this organisation's live data.
+${brainContext ? `\nBRAIN KNOWLEDGE BASE (NxtGen product context & business rules):\n${brainContext}\n` : ""}
 LIVE CRM SNAPSHOT (as of right now):
 - Contacts: ${totalContacts} total | ${leads} leads | ${customers} customers | ${churned} churned | ${hotLeads} hot leads (score ≥70, not yet contacted)
 - Pipeline: ${activeDeals.length} active deals | $${pipelineValue.toLocaleString()} pipeline value | ${winRate}% win rate

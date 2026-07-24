@@ -27,10 +27,11 @@ export async function POST(request: NextRequest) {
       status: "draft",
       trigger: body.trigger || { event: "manual" },
       steps: body.steps || [],
-      createdById: userId ?? undefined,
     }).returning();
     return NextResponse.json({ data: workflow }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Failed to create workflow" }, { status: 500 });
+  } catch (err) {
+    console.error("[workflows POST]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
